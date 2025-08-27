@@ -151,6 +151,7 @@ version = "0.0.1"
 source = { virtual = "." }
 dependencies = [
     { name = "confluent-kafka", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "pyyaml", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 
 [package.dev-dependencies]
@@ -162,7 +163,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "confluent-kafka", specifier = ">=2.8.0" }]
+requires-dist = [
+    { name = "confluent-kafka", specifier = ">=2.8.0" },
+    { name = "pyyaml" },
+]
 
 [package.metadata.requires-dev]
 dev = [

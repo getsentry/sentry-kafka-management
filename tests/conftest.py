@@ -70,3 +70,4 @@ def temp_topics_config():
     
     # Cleanup
     temp_path.unlink()
+
