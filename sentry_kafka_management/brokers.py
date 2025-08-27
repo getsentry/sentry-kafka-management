@@ -1,9 +1,9 @@
-
-
 from abc import ABC
 from pathlib import Path
 from typing import Any, Mapping, Sequence, TypedDict
+
 import yaml
+
 
 class ClusterConfig(TypedDict):
     """
@@ -14,40 +14,45 @@ class ClusterConfig(TypedDict):
     security_protocol: str | None
     sasl_mechanism: str | None
     sasl_username: str | None
-    sasl_password: str | None   
+    sasl_password: str | None
+
 
 class TopicConfig(TypedDict):
     """
     Represents the configuration of a Kafka topic.
     """
+
     partitions: int
-    placement: Any # TODO: Add a structure for placement
+    placement: Any  # TODO: Add a structure for placement
     replication_factor: int
     settings: Mapping[str, Any]
-    
+
 
 class KafkaConfig(ABC):
     """
-    Provides an entry point to the Kafka fleet configuraiton.
+    Provides an entry point to the Kafka fleet configuration.
 
     There can be multiple implementations for different ways
     to store the config.
-    
+
     Hopefully one day we will be able to consolidate on one
     """
 
     def get_clusters(self) -> Mapping[str, ClusterConfig]:
         """
-        Returns the clsuters configuraiton. Specifically this
-        is needed to conenct to clusters.
+        Returns the clsuters configuration. Specifically this
+        is needed to connect to clusters.
         """
         raise NotImplementedError
 
-    def get_topics_config(self, cluster_name: str) -> Mapping[str, TopicConfig]:
+    def get_topics_config(
+        self,
+        cluster_name: str,
+    ) -> Mapping[str, TopicConfig]:
         """
-        Returns the topics configruation for a cluster.
-        This is not the actual production configuraiton. This is 
-        the configuraiton as per config files.
+        Returns the topics configuration for a cluster.
+        This is not the actual production configuration. This is
+        the configuration as per config files.
         """
         raise NotImplementedError
 
@@ -69,22 +74,26 @@ class YamlKafkaConfig(KafkaConfig):
             )
             for key, cluster in clusters.items()
         }
-        
-        topics = yaml.safe_load(topics_path.read_text())
-        self.__topics = {cluster_name: {
-            key: TopicConfig(
-                partitions=topic["partitions"],
-                placement=topic["placement"],
-                replication_factor=topic["replication_factor"],
-                settings=topic["settings"],
-            )
-            for key, topic in topics.items()
-        } for cluster_name, topics in topics.items()}
 
-        
+        topics = yaml.safe_load(topics_path.read_text())
+        self.__topics = {
+            cluster_name: {
+                key: TopicConfig(
+                    partitions=topic["partitions"],
+                    placement=topic["placement"],
+                    replication_factor=topic["replication_factor"],
+                    settings=topic["settings"],
+                )
+                for key, topic in topics.items()
+            }
+            for cluster_name, topics in topics.items()
+        }
 
     def get_clusters(self) -> Mapping[str, ClusterConfig]:
         return self.__clusters
 
-    def get_topics_config(self, cluster_name: str) -> Mapping[str, TopicConfig]:
+    def get_topics_config(
+        self,
+        cluster_name: str,
+    ) -> Mapping[str, TopicConfig]:
         return self.__topics[cluster_name]
