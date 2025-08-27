@@ -15,6 +15,7 @@ dev = [
   "sentry_devenv>=1.22.2",
   "mypy>=1.17.1",
   "devservices>=1.2.1",
+  "pre-commit>=4.1.0",
 ]
 
 [tool.uv]
