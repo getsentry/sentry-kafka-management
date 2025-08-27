@@ -1,4 +1,4 @@
-.PHONY: reset install-dev install-pre-commit-hook tests typecheck
+.PHONY: reset install-dev install-pre-commit-hook tests typecheck lint
 
 reset:
 	rm -rf .venv
@@ -17,3 +17,8 @@ tests:
 typecheck:
 	mypy --strict sentry_kafka_management
 	mypy --strict tests
+
+lint:
+	black --config=pyproject.toml sentry_kafka_management
+	flake8 sentry_kafka_management
+	isort sentry_kafka_management
