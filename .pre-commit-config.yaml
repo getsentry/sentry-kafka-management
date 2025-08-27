@@ -16,11 +16,8 @@ repos:
     rev: 24.10.0
     hooks:
       - id: black
-        files: ^sentry_streams/.+
-        args: [--config=./sentry_streams/pyproject.toml]
-      - id: black
-        files: ^sentry_flink/.+
-        args: [--config=./sentry_flink/pyproject.toml]
+        files: ^sentry_kafka_management/.+
+        args: [--config=./pyproject.toml]
   - repo: https://github.com/pycqa/flake8
     rev: 7.1.1
     hooks:
@@ -31,25 +28,14 @@ repos:
     hooks:
       - id: isort
         name: isort (python)
-        files: ^sentry_streams/.+
-        args: [--settings-path=./sentry_streams/pyproject.toml]
-      - id: isort
-        name: isort (python)
-        files: ^sentry_flink/.+
-        args: [--settings-path=./sentry_flink/pyproject.toml]
+        files: ^sentry_kafka_management/.+
+        args: [--settings-path=./pyproject.toml]
   - repo: local
     hooks:
-      - id: cargo-fmt
-        name: format rust code
-        language: system
-        # keep in sync with Cargo.toml. There is no way to run cargo fmt for specific files
-        # https://github.com/rust-lang/rustfmt/issues/4485
-        entry: rustfmt --edition 2021
-        files: ^sentry_streams/.*\.rs$
       - id: mypy
         name: mypy
         entry: mypy
-        files: ^sentry_streams/.*\.py$
+        files: ^sentry_kafka_management/.*\.py$
         types: [python]
         language: system
 
