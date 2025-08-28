@@ -1,6 +1,9 @@
 # sentry-kafka-management
 Libraries for managing our Kafka clusters/consumers, as well as Taskbroker.
 
-### Dev Setup
-- `python -m venv .venv`
-- `devenv sync`
+
+### Usage
+- `make install-dev` to install the development environment
+- `make tests` to run the unit tests
+- `make typecheck` to run Python type checking
+- `make lint` to lint the code base and apply auto generated changes
