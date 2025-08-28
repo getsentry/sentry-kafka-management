@@ -1,0 +1,26 @@
+name: type-checking
+on:
+  push:
+    branches:
+      - main
+      - release/**
+  pull_request:
+
+jobs:
+  typing:
+    name: "mypy typing"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Make environment
+        run: make install-ci
+
+      - name: Run strict mypy
+        run: |
+          source .venv/bin/activate
+          make typecheck

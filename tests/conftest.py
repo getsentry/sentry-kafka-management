@@ -1,11 +1,12 @@
 import tempfile
 import yaml
 from pathlib import Path
+from typing import Generator
 import pytest
 
 
 @pytest.fixture
-def temp_clusters_config():
+def temp_clusters_config() -> Generator[Path, None, None]:
     """Create a temporary clusters configuration file with two clusters."""
     clusters_config = {
         "cluster1": {
@@ -23,19 +24,19 @@ def temp_clusters_config():
             "sasl_password": "pass1"
         }
     }
-    
+
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
         yaml.dump(clusters_config, f)
         temp_path = Path(f.name)
-    
+
     yield temp_path
-    
+
     # Cleanup
     temp_path.unlink()
 
 
 @pytest.fixture
-def temp_topics_config():
+def temp_topics_config() -> Generator[Path, None, None]:
     """Create a temporary topics configuration file with topics for two clusters."""
     topics_config = {
         "cluster1": {
@@ -61,13 +62,12 @@ def temp_topics_config():
             }
         }
     }
-    
+
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
         yaml.dump(topics_config, f)
         temp_path = Path(f.name)
-    
+
     yield temp_path
-    
+
     # Cleanup
     temp_path.unlink()
-

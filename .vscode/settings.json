@@ -1,0 +1,19 @@
+{
+    "python.defaultInterpreterPath": "./.venv/bin/python",
+    // Auto-format on save
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit"
+    },
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        },
+    },
+    "python.testing.pytestEnabled": true,
+    "mypy-type-checker.args": [
+        "--strict"
+    ],
+}

@@ -1,5 +1,7 @@
 import os
-from confluent_kafka.admin import AdminClient
+
+from confluent_kafka.admin import AdminClient  # type: ignore[import-untyped]
+
 from sentry_kafka_management.brokers import ClusterConfig
 
 
@@ -22,8 +24,6 @@ def get_admin_client(kafka_config: ClusterConfig) -> AdminClient:
         broker_config["sasl.username"] = kafka_config["sasl_username"]
 
     if kafka_config["sasl_password"]:
-        broker_config["sasl.password"] = os.path.expandvars(
-            kafka_config["sasl_password"]
-        )
-    
-    return AdminClient(kafka_config)
+        broker_config["sasl.password"] = os.path.expandvars(kafka_config["sasl_password"])
+
+    return AdminClient(broker_config)
