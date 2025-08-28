@@ -1,0 +1,20 @@
+name: pre-commit
+on:
+    push:
+      branches:
+        - main
+        - release/**
+    pull_request:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - run: |
+        make install-dev
+        . .venv/bin/activate
+        pre-commit run
