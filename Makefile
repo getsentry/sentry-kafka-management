@@ -11,6 +11,10 @@ install-dev:
 	uv sync --group dev
 	$(MAKE) install-pre-commit-hook
 
+install-ci:
+	which uv || (curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh)
+	uv sync --group dev
+
 tests:
 	pytest -vv tests
 

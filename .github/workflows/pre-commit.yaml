@@ -14,7 +14,11 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: "3.12"
-    - run: |
-        make install-dev
-        . .venv/bin/activate
-        pre-commit run
+
+    - name: Make environment
+      run: make install-ci
+
+    - name: Run pre-commit hooks
+      run: |
+        source .venv/bin/activate
+        pre-commit run --all-files
