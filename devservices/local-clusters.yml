@@ -1,0 +1,7 @@
+local:
+  brokers:
+    - localhost:9092
+  security_protocol: PLAINTEXT
+  sasl_mechanism: null
+  sasl_username: null
+  sasl_password: null
