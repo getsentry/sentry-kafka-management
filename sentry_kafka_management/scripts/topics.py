@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import argparse
 import json
 from pathlib import Path
@@ -7,11 +5,11 @@ from typing import Sequence
 
 import yaml
 
-from sentry_kafka_management.actions.topics import list_topics
+from sentry_kafka_management.actions.topics import list_topics as list_topics_action
 from sentry_kafka_management.brokers import ClusterConfig
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def list_topics(argv: Sequence[str] | None = None) -> int:
     """List topic names for a cluster from a clusters YAML file."""
     parser = argparse.ArgumentParser(
         description="List Kafka topics using a single clusters configuration file",
@@ -51,10 +49,6 @@ Examples:
     }
 
     cluster_name = args.cluster or next(iter(clusters.keys()))
-    result = list_topics(clusters[cluster_name])
+    result = list_topics_action(clusters[cluster_name])
     print(json.dumps(result, indent=2))
     return 0
-
-
-if __name__ == "__main__":
-    main()
