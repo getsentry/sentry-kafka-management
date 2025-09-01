@@ -12,7 +12,7 @@ from sentry_kafka_management.brokers import ClusterConfig
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Returns a list of topics"""
+    """List topic names for a cluster from a clusters YAML file."""
     parser = argparse.ArgumentParser(
         description="List Kafka topics using a single clusters configuration file",
         formatter_class=argparse.RawDescriptionHelpFormatter,
