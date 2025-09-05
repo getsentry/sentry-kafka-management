@@ -1,4 +1,4 @@
-.PHONY: reset install-dev install-pre-commit-hook tests typecheck lint
+.PHONY: reset install-dev install-pre-commit-hook tests typecheck lint build
 
 reset:
 	rm -rf .venv
@@ -26,3 +26,6 @@ lint:
 	black --config=pyproject.toml sentry_kafka_management
 	flake8 sentry_kafka_management
 	isort sentry_kafka_management
+
+build:
+	uv build --wheel
