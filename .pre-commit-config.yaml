@@ -9,6 +9,10 @@ repos:
       - id: check-yaml
       - id: detect-private-key
       - id: end-of-file-fixer
+        # The release script adds a new line at the end of the CHANGELOG.md
+        # file. Then during CI on the release branch pre-commit tries to remove
+        # it, thus fails. Excluding it here.
+        exclude: ^CHANGELOG.md$
       - id: trailing-whitespace
       - id: fix-encoding-pragma
         args: ["--remove"]
