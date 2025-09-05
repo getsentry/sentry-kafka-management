@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 
-from typing import Sequence
 import json
+from typing import Sequence
 
-from sentry_kafka_management.actions.topics import list_topics
+from sentry_kafka_management.actions.brokers import (
+    describe_broker_configs as describe_broker_configs_action,
+)
 from sentry_kafka_management.brokers import YamlKafkaConfig
 from sentry_kafka_management.common import kafka_script_parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """Returns a list of topics"""
+def describe_broker_configs(argv: Sequence[str] | None = None) -> int:
+    """Returns all broker configs on a given cluster"""
     parser = kafka_script_parser(
         description="List Kafka topics using configuration file",
         epilog="""
@@ -29,10 +31,6 @@ Examples:
     args = parser.parse_args()
 
     config = YamlKafkaConfig(args.cluster_config, args.topic_config)
-    result = list_topics(config.get_clusters()[args.cluster])
+    result = describe_broker_configs_action(config.get_clusters()[args.cluster])
     print(json.dumps(result, indent=2))
     return 0
-
-
-if __name__ == "__main__":
-    main()
