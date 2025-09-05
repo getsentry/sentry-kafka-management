@@ -9,7 +9,7 @@ repos:
       - id: check-yaml
       - id: detect-private-key
       - id: end-of-file-fixer
-        exclude: "^./CHANGELOG.md"
+        exclude: ^CHANGELOG.md$
       - id: trailing-whitespace
       - id: fix-encoding-pragma
         args: ["--remove"]
