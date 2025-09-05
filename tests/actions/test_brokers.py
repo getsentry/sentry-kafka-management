@@ -2,6 +2,7 @@ from unittest.mock import Mock
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
     ConfigResource,
+    ConfigSource,
 )
 
 from sentry_kafka_management.actions.brokers import describe_broker_configs
@@ -13,6 +14,7 @@ def test_describe_broker_configs() -> None:
         {
             "config": "num.network.threads",
             "value": "3",
+            "source": "DYNAMIC_BROKER_CONFIG",
             "isDefault": True,
             "isReadOnly": False,
             "broker": "0",
@@ -30,6 +32,7 @@ def test_describe_broker_configs() -> None:
     conf_value_mock.value = "3"
     conf_value_mock.is_default = True
     conf_value_mock.is_read_only = False
+    conf_value_mock.source = ConfigSource.DYNAMIC_BROKER_CONFIG
 
     # mocking the config returned by describe_configs
     conf_mock = Mock()
