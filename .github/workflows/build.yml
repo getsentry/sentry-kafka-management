@@ -1,0 +1,33 @@
+name: build
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+      - release/**
+
+jobs:
+  dist:
+    name: Build wheel and .tar files for release
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: 3.12
+
+      - name: Make environment
+        run: make install-ci
+
+      - name: Build wheels
+        run: |
+          source .venv/bin/activate
+          make build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.sha }}
+          path: dist/*
