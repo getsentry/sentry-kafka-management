@@ -4,7 +4,7 @@ github:
   owner: getsentry
   repo: sentry-kafka-management
 changelogPolicy: auto
-preReleaseCommand: bash ../scripts/bump-version.sh
+preReleaseCommand: bash ./scripts/bump-version.sh
 targets:
   - name: github
   - name: pypi
