@@ -1,22 +1,19 @@
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
+    AdminClient,
     ConfigResource,
 )
-
-from sentry_kafka_management.brokers import ClusterConfig
-from sentry_kafka_management.connectors.admin import get_admin_client
 
 KAFKA_TIMEOUT = 5
 
 
 def describe_broker_configs(
-    kafka_config: ClusterConfig,
-) -> list[dict[str, Any]]:
+    admin_client: AdminClient,
+) -> Sequence[Mapping[str, Any]]:
     """
     Returns configuration for all brokers in a cluster.
     """
-    admin_client = get_admin_client(kafka_config)
     broker_resources = [
         ConfigResource(ConfigResource.Type.BROKER, f"{id}")
         for id in admin_client.list_topics().brokers

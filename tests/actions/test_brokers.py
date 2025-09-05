@@ -1,15 +1,13 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
     ConfigResource,
 )
 
 from sentry_kafka_management.actions.brokers import describe_broker_configs
-from sentry_kafka_management.brokers import ClusterConfig
 
 
-@patch("sentry_kafka_management.actions.brokers.get_admin_client")
-def test_describe_broker_configs(mock_admin_client: Mock) -> None:
+def test_describe_broker_configs() -> None:
     """Test listing topics."""
     expected = [
         {
@@ -40,16 +38,6 @@ def test_describe_broker_configs(mock_admin_client: Mock) -> None:
         (ConfigResource(ConfigResource.Type.BROKER, "0"), conf_mock)
     ]
 
-    mock_admin_client.return_value = mock_client
-
-    cluster_config: ClusterConfig = {
-        "brokers": ["broker1:9092", "broker2:9092"],
-        "security_protocol": "PLAINTEXT",
-        "sasl_mechanism": None,
-        "sasl_username": None,
-        "sasl_password": None
-    }
-
-    result = describe_broker_configs(cluster_config)
+    result = describe_broker_configs(mock_client)
     mock_client.describe_configs.assert_called_once()
     assert result == expected
