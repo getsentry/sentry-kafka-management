@@ -7,7 +7,7 @@ name = "sentry_kafka_management"
 version = "0.0.1"
 description = "Libraries used by Sentry for kafka management"
 readme = "README.md"
-requires-python = ">= 3.12"
+requires-python = ">= 3.11"
 dependencies = [
   "confluent-kafka>=2.8.0",
   "PyYAML",
