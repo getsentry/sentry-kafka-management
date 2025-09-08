@@ -8,12 +8,15 @@ from sentry_kafka_management.actions.brokers import (
 )
 from sentry_kafka_management.brokers import YamlKafkaConfig
 from sentry_kafka_management.common import kafka_script_parser
+from sentry_kafka_management.connectors.admin import get_admin_client
 
 
 def describe_broker_configs(argv: Sequence[str] | None = None) -> int:
     """Returns all broker configs on a given cluster"""
     parser = kafka_script_parser(
-        description="List Kafka topics using configuration file",
+        description="""
+List all broker configs in a cluster, including whether they were set dynamically or statically
+        """,
         epilog="""
 Examples:
   %(prog)s -c config.yml -t topic.yml
@@ -28,9 +31,11 @@ Examples:
         help="Name of the cluster to query (uses first available if not specified)",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     config = YamlKafkaConfig(args.cluster_config, args.topic_config)
-    result = describe_broker_configs_action(config.get_clusters()[args.cluster])
+    cluster_config = config.get_clusters()[args.cluster]
+    client = get_admin_client(cluster_config)
+    result = describe_broker_configs_action(client)
     print(json.dumps(result, indent=2))
     return 0

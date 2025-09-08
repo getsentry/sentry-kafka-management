@@ -1,12 +1,16 @@
+#!/usr/bin/env python3
+
 from __future__ import annotations
 
 import argparse
 from typing import Callable, Mapping, Sequence
 
+from sentry_kafka_management.scripts.brokers import describe_broker_configs
 from sentry_kafka_management.scripts.topics import list_topics
 
 FUNCTIONS: Mapping[str, Callable[[Sequence[str] | None], int]] = {
     "get-topics": list_topics,
+    "describe-broker-configs": describe_broker_configs,
 }
 
 
@@ -25,7 +29,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return "\n".join(lines)
 
     parser = argparse.ArgumentParser(
-        description="Router CLI for sentry-kafka-management. "
+        description="Router CLI for sentry-kafka-management."
         "Provide a function, remaining args are delegated to that script.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=_functions_epilog(),
@@ -38,7 +42,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Parse only the function; leave the rest for the target script
     args, remainder = parser.parse_known_args(list(argv) if argv is not None else None)
-
     if args.function is None:
         parser.print_help()
         return 2

@@ -1,31 +1,25 @@
-import argparse
+#!/usr/bin/env python3
+
 import json
-from pathlib import Path
 from typing import Sequence
 
-import yaml
-
 from sentry_kafka_management.actions.topics import list_topics as list_topics_action
-from sentry_kafka_management.brokers import ClusterConfig
+from sentry_kafka_management.brokers import YamlKafkaConfig
+from sentry_kafka_management.common import kafka_script_parser
+from sentry_kafka_management.connectors.admin import get_admin_client
 
 
 def list_topics(argv: Sequence[str] | None = None) -> int:
     """List topic names for a cluster from a clusters YAML file."""
-    parser = argparse.ArgumentParser(
+
+    parser = kafka_script_parser(
         description="List Kafka topics using a single clusters configuration file",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s -c config.yml
-  %(prog)s -c config.yml -n my-cluster
+  %(prog)s -c config.yml -t topic.yml
+  %(prog)s -c config.yml -t topic.yml -n my-cluster
+  %(prog)s --cluster-config config.yml --topic-config topic.yml --cluster production
         """,
-    )
-
-    parser.add_argument(
-        "-c",
-        "--config",
-        required=True,
-        help="Path to the clusters YAML configuration file",
     )
 
     parser.add_argument(
@@ -36,19 +30,9 @@ Examples:
 
     args = parser.parse_args(argv)
 
-    clusters_raw = yaml.safe_load(Path(args.config).read_text())
-    clusters: dict[str, ClusterConfig] = {
-        key: ClusterConfig(
-            brokers=value["brokers"],
-            security_protocol=value.get("security_protocol"),
-            sasl_mechanism=value.get("sasl_mechanism"),
-            sasl_username=value.get("sasl_username"),
-            sasl_password=value.get("sasl_password"),
-        )
-        for key, value in clusters_raw.items()
-    }
-
-    cluster_name = args.cluster or next(iter(clusters.keys()))
-    result = list_topics_action(clusters[cluster_name])
+    config = YamlKafkaConfig(args.cluster_config, args.topic_config)
+    cluster_config = config.get_clusters()[args.cluster]
+    client = get_admin_client(cluster_config)
+    result = list_topics_action(client)
     print(json.dumps(result, indent=2))
     return 0
