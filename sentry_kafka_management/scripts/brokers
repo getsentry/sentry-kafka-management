@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+
+import json
+from typing import Sequence
+
+from sentry_kafka_management.actions.brokers import (
+    describe_broker_configs as describe_broker_configs_action,
+)
+from sentry_kafka_management.brokers import YamlKafkaConfig
+from sentry_kafka_management.common import kafka_script_parser
+
+
+def describe_broker_configs(argv: Sequence[str] | None = None) -> int:
+    """Returns all broker configs on a given cluster"""
+    parser = kafka_script_parser(
+        description="List Kafka topics using configuration file",
+        epilog="""
+Examples:
+  %(prog)s -c config.yml -t topic.yml
+  %(prog)s -c config.yml -t topic.yml -n my-cluster
+  %(prog)s --cluster-config config.yml --topic-config topic.yml --cluster production
+        """,
+    )
+
+    parser.add_argument(
+        "-n",
+        "--cluster",
+        help="Name of the cluster to query (uses first available if not specified)",
+    )
+
+    args = parser.parse_args()
+
+    config = YamlKafkaConfig(args.cluster_config, args.topic_config)
+    result = describe_broker_configs_action(config.get_clusters()[args.cluster])
+    print(json.dumps(result, indent=2))
+    return 0
