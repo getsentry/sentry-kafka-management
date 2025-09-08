@@ -1,3 +1,11 @@
+## 0.0.2
+
+### Various fixes & improvements
+
+- track config source (#11) by @bmckerry
+- address comments (#11) by @bmckerry
+- feat: add script for getting broker configs (#11) by @bmckerry
+
 ## 0.0.1
 
 ### Various fixes & improvements
