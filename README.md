@@ -28,7 +28,7 @@ Show CLI help (router):
 docker run --rm sentry-kafka-management:local --help
 ```
 
-Run against a single clusters config via the unified CLI router (mount your config directory):
+Run a script against your local devservices kafka via the unified CLI router:
 
 ```bash
 docker run --rm \

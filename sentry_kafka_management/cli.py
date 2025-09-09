@@ -29,7 +29,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return "\n".join(lines)
 
     parser = argparse.ArgumentParser(
-        description="Router CLI for sentry-kafka-management."
+        description="Router CLI for sentry-kafka-management. "
         "Provide a function, remaining args are delegated to that script.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=_functions_epilog(),

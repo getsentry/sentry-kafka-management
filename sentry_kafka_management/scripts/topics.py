@@ -25,7 +25,8 @@ Examples:
     parser.add_argument(
         "-n",
         "--cluster",
-        help="Name of the cluster to query (uses first available if not specified)",
+        required=True,
+        help="Name of the cluster to query",
     )
 
     args = parser.parse_args(argv)

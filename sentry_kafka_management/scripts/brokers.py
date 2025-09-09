@@ -12,7 +12,7 @@ from sentry_kafka_management.connectors.admin import get_admin_client
 
 
 def describe_broker_configs(argv: Sequence[str] | None = None) -> int:
-    """Returns all broker configs on a given cluster"""
+    """Returns all broker configs on a given cluster."""
     parser = kafka_script_parser(
         description="""
 List all broker configs in a cluster, including whether they were set dynamically or statically
@@ -28,7 +28,8 @@ Examples:
     parser.add_argument(
         "-n",
         "--cluster",
-        help="Name of the cluster to query (uses first available if not specified)",
+        required=True,
+        help="Name of the cluster to query",
     )
 
     args = parser.parse_args(argv)
