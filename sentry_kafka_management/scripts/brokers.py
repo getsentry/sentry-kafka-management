@@ -19,9 +19,8 @@ List all broker configs in a cluster, including whether they were set dynamicall
         """,
         epilog="""
 Examples:
-  %(prog)s -c config.yml -t topic.yml
-  %(prog)s -c config.yml -t topic.yml -n my-cluster
-  %(prog)s --cluster-config config.yml --topic-config topic.yml --cluster production
+  %(prog)s -c config.yml -n my-cluster
+  %(prog)s --config config.yml --cluster production
         """,
     )
 
@@ -34,7 +33,7 @@ Examples:
 
     args = parser.parse_args(argv)
 
-    config = YamlKafkaConfig(args.cluster_config, args.topic_config)
+    config = YamlKafkaConfig(args.config)
     cluster_config = config.get_clusters()[args.cluster]
     client = get_admin_client(cluster_config)
     result = describe_broker_configs_action(client)

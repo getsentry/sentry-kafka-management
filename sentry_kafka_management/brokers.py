@@ -62,31 +62,32 @@ class YamlKafkaConfig(KafkaConfig):
     Loads the Kafka config from a YAML file.
     """
 
-    def __init__(self, clusters_path: Path, topics_path: Path):
-        clusters = yaml.safe_load(clusters_path.read_text())
+    def __init__(self, conf_path: Path):
+        conf: Sequence[Mapping[str, Any]] = yaml.safe_load(conf_path.read_text())
         self.__clusters = {
-            key: ClusterConfig(
+            cluster["name"]: ClusterConfig(
                 brokers=cluster["brokers"],
                 security_protocol=cluster.get("security_protocol"),
                 sasl_mechanism=cluster.get("sasl_mechanism"),
                 sasl_username=cluster.get("sasl_username"),
                 sasl_password=cluster.get("sasl_password"),
             )
-            for key, cluster in clusters.items()
+            for cluster in conf
         }
 
-        topics = yaml.safe_load(topics_path.read_text())
         self.__topics = {
-            cluster_name: {
-                key: TopicConfig(
+            cluster["name"]: {
+                topic["name"]: TopicConfig(
                     partitions=topic["partitions"],
                     placement=topic["placement"],
                     replication_factor=topic["replication_factor"],
                     settings=topic["settings"],
                 )
-                for key, topic in topics.items()
+                for topic in cluster["topics"]
             }
-            for cluster_name, topics in topics.items()
+            # only generate this block if the cluster has a `topics` section
+            for cluster in conf
+            if "topics" in cluster
         }
 
     def get_clusters(self) -> Mapping[str, ClusterConfig]:

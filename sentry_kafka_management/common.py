@@ -14,16 +14,9 @@ def kafka_script_parser(description: str | None, epilog: str | None) -> Argument
     )
     parser.add_argument(
         "-c",
-        "--cluster-config",
+        "--config",
         type=Path,
         required=True,
-        help="Path to the cluster YAML configuration file",
-    )
-    parser.add_argument(
-        "-t",
-        "--topic-config",
-        type=Path,
-        required=True,
-        help="Path to the topics' YAML configuration file",
+        help="Path to the YAML configuration file",
     )
     return parser

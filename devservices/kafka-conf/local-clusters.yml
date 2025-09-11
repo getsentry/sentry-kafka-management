@@ -1,7 +1,0 @@
-local:
-  brokers:
-    - kafka-kafka-1:9094
-  security_protocol: PLAINTEXT
-  sasl_mechanism: null
-  sasl_username: null
-  sasl_password: null
