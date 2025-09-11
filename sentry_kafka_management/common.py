@@ -1,5 +1,6 @@
 import argparse
 from argparse import ArgumentParser
+from pathlib import Path
 
 
 def kafka_script_parser(description: str | None, epilog: str | None) -> ArgumentParser:
@@ -12,9 +13,17 @@ def kafka_script_parser(description: str | None, epilog: str | None) -> Argument
         epilog=epilog,
     )
     parser.add_argument(
-        "-c", "--cluster-config", required=True, help="Path to the cluster YAML configuration file"
+        "-c",
+        "--cluster-config",
+        type=Path,
+        required=True,
+        help="Path to the cluster YAML configuration file",
     )
     parser.add_argument(
-        "-t", "--topic-config", required=True, help="Path to the topics' YAML configuration file"
+        "-t",
+        "--topic-config",
+        type=Path,
+        required=True,
+        help="Path to the topics' YAML configuration file",
     )
     return parser

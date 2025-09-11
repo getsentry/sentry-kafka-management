@@ -44,4 +44,4 @@ repos:
         language: system
 
 default_language_version:
-  python: python3.12
+  python: "3.12.6"
