@@ -36,7 +36,6 @@ docker run --rm \
   --network "devservices" \
   sentry-kafka-management:local \
   get-topics \
-  -c /config/local-clusters.yml \
-  -t /config/local-topics.yml \
+  -c /config/local.yml \
   -n <cluster-name>
 ```

@@ -2,10 +2,10 @@ from sentry_kafka_management.brokers import YamlKafkaConfig
 from pathlib import Path
 
 
-def test_load_clusters_only(temp_clusters_config: Path, temp_topics_config: Path) -> None:
+def test_load_clusters_only(temp_config: Path) -> None:
     """Test loading configuration with only clusters defined."""
 
-    config = YamlKafkaConfig(temp_clusters_config, temp_topics_config)
+    config = YamlKafkaConfig(temp_config)
 
     # Test clusters loading
     clusters = config.get_clusters()
@@ -32,9 +32,9 @@ def test_load_clusters_only(temp_clusters_config: Path, temp_topics_config: Path
     assert cluster2["sasl_password"] == "pass1"
 
 
-def test_load_clusters_and_topics(temp_clusters_config: Path, temp_topics_config: Path) -> None:
+def test_load_clusters_and_topics(temp_config: Path) -> None:
 
-    config = YamlKafkaConfig(temp_clusters_config, temp_topics_config)
+    config = YamlKafkaConfig(temp_config)
 
     # Test clusters loading
     clusters = config.get_clusters()
