@@ -1,7 +1,3 @@
-name: build
-permissions:
-  contents: read
-
 on:
   push:
     branches:
@@ -9,25 +5,23 @@ on:
       - release/**
 
 jobs:
-  dist:
-    name: Build wheel and .tar files for release
-    timeout-minutes: 10
+  build-and-push:
+    name: Build and push image to GCR/GAR
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write      # Required for GHCR
+      id-token: write      # Required for Google Artifact Registry (GAR)
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      - uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
         with:
-          python-version: 3.12
-
-      - name: Make environment
-        run: make install-ci
-
-      - name: Build wheels
-        run: |
-          source .venv/bin/activate
-          make build
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ github.sha }}
-          path: dist/*
+          image_name: 'sentry-kafka-management'
+          platforms: linux/amd64
+          dockerfile_path: './Dockerfile'
+          ghcr: false
+          tag_nightly: false
+          google_ar: true
+          google_ar_image_name: us-central1-docker.pkg.dev/sentryio/sentry-kafka-management/image
+          google_workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          google_service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
