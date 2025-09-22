@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sentry_kafka_management"
-version = "0.0.3"
+version = "0.0.4"
 description = "Libraries used by Sentry for kafka management"
 readme = "README.md"
 requires-python = ">= 3.11"

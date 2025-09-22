@@ -1,3 +1,16 @@
+## 0.0.4
+
+### Various fixes & improvements
+
+- feat: use devinfra standard build/push workflow (#16) by @bmckerry
+- unified config file (#15) by @bmckerry
+- add tests for cli/scripts (#6) by @enochtangg
+- fix connection & tests (#6) by @enochtangg
+- WIP: functional scripts for local docker (#6) by @enochtangg
+- Make scripts non-executables, add epilog (#6) by @enochtangg
+- create underpriv user, install with uv, and add .dockerignore (#6) by @enochtangg
+- Create docker file and organize CLI (#6) by @enochtangg
+
 ## 0.0.3
 
 ### Various fixes & improvements
