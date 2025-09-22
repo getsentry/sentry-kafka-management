@@ -1,4 +1,4 @@
-name: build
+name: Build Python Package
 permissions:
   contents: read
 
