@@ -1,5 +1,8 @@
 - name: local
+  # uncomment the IP address line if running the script locally,
+  # or the DNS line if running the script from another Docker container
   brokers:
+    # - 127.0.0.1:9092
     - kafka-kafka-1:9094
   security_protocol: PLAINTEXT
   sasl_mechanism: null
