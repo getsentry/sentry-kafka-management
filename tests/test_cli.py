@@ -1,48 +1,58 @@
 from pathlib import Path
-from unittest.mock import patch, Mock
+from unittest.mock import patch
+import json
+
+import click.testing
 
 from sentry_kafka_management.cli import main as cli
 
 
-# TODO: we should turn this into a parameterized test case
-# since 90% of the test for each subcommand is the same
-def test_cli(temp_config: Path) -> None:
-    mock_list_topics = Mock()
-    mock_describe_configs = Mock()
-    mock_functions = {
-        "get-topics": mock_list_topics,
-        "describe-broker-configs": mock_describe_configs,
-    }
+def test_cli_topics_list(temp_config: Path) -> None:
+    """Test the topics list command."""
     with patch(
-        "sentry_kafka_management.cli.FUNCTIONS",
-        mock_functions,
-    ):
-        res = cli([
-            "get-topics",
-            "--config",
-            str(temp_config),
-            "--cluster",
-            "cluster1"
-        ])
-        mock_list_topics.assert_called_once_with([
-            "--config",
-            str(temp_config),
-            "--cluster",
-            "cluster1"
-        ])
-        assert res == 0
+        "sentry_kafka_management.scripts.topics.list_topics_action",
+    ) as mock_action:
+        mock_topics = ["topic1", "topic2"]
+        mock_action.return_value = mock_topics
 
-        res = cli([
+        runner = click.testing.CliRunner()
+        result = runner.invoke(cli, [
+            "list-topics",
+            "--config", str(temp_config),
+            "--cluster", "cluster1"
+        ])
+
+        assert result.exit_code == 0
+        mock_action.assert_called_once()
+        parsed_output = json.loads(result.output)
+        assert parsed_output == mock_topics
+
+
+def test_cli_brokers_describe_configs(temp_config: Path) -> None:
+    """Test the brokers describe-configs command."""
+    with patch(
+        "sentry_kafka_management.scripts.brokers.describe_broker_configs_action",
+    ) as mock_action:
+        mock_configs = [
+            {
+                "config": "num.network.threads",
+                "value": "3",
+                "source": "DYNAMIC_BROKER_CONFIG",
+                "isDefault": True,
+                "isReadOnly": False,
+                "broker": "0",
+            },
+        ]
+        mock_action.return_value = mock_configs
+
+        runner = click.testing.CliRunner()
+        result = runner.invoke(cli, [
             "describe-broker-configs",
-            "--config",
-            str(temp_config),
-            "--cluster",
-            "cluster1"
+            "--config", str(temp_config),
+            "--cluster", "cluster1"
         ])
-        mock_describe_configs.assert_called_once_with([
-            "--config",
-            str(temp_config),
-            "--cluster",
-            "cluster1"
-        ])
-        assert res == 0
+
+        assert result.exit_code == 0
+        mock_action.assert_called_once()
+        parsed_output = json.loads(result.output)
+        assert parsed_output == mock_configs

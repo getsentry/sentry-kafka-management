@@ -11,7 +11,11 @@ requires-python = ">= 3.11"
 dependencies = [
   "confluent-kafka>=2.8.0",
   "PyYAML",
+  "click>=8.0.0",
 ]
+
+[project.scripts]
+kafka-scripts = "sentry_kafka_management.cli:main"
 
 [dependency-groups]
 dev = [
