@@ -1,64 +1,42 @@
 from unittest.mock import Mock
 
+from confluent_kafka import Node
+from confluent_kafka.admin import DescribeClusterResult
+
 from sentry_kafka_management.actions.clusters import describe_cluster
 
 
 def test_describe_cluster() -> None:
     """Test describing cluster configuration."""
-    mock_controller = Mock()
-    mock_controller.id = 1
+    controller = Node(id=1, host=Mock(), port=Mock(), rack=Mock())
 
-    mock_node1 = Mock()
-    mock_node1.id = 1
-    mock_node1.id_string = "1"
-    mock_node1.host = "broker1.example.com"
-    mock_node1.port = 9092
-    mock_node1.rack = "rack1"
+    node1 = Node(id=1, host=Mock(), port=Mock(), rack=Mock())
+    node2 = Node(id=2, host=Mock(), port=Mock(), rack=Mock())
 
-    mock_node2 = Mock()
-    mock_node2.id = 2
-    mock_node2.id_string = "2"
-    mock_node2.host = "broker2.example.com"
-    mock_node2.port = 9092
-    mock_node2.rack = "rack2"
+    cluster_result = DescribeClusterResult(
+        controller=controller, nodes=[node1, node2], cluster_id=Mock()
+    )
 
-    mock_node3 = Mock()
-    mock_node3.id = 3
-    mock_node3.id_string = "3"
-    mock_node3.host = "broker3.example.com"
-    mock_node3.port = 9092
-    mock_node3.rack = None
-
-    mock_cluster_result = Mock()
-    mock_cluster_result.controller = mock_controller
-    mock_cluster_result.nodes = [mock_node1, mock_node2, mock_node3]
-
-    mock_cluster_result.result.return_value = mock_cluster_result
+    mock_future = Mock()
+    mock_future.result.return_value = cluster_result
 
     mock_client = Mock()
-    mock_client.describe_cluster.return_value = mock_cluster_result
+    mock_client.describe_cluster.return_value = mock_future
 
     expected = [
         {
-            "id": "1",
-            "host": "broker1.example.com",
-            "port": 9092,
-            "rack": "rack1",
-            "isController": True,
+            "id": node1.id_string,
+            "host": node1.host,
+            "port": node1.port,
+            "rack": node1.rack,
+            "isController": node1.id == controller.id,
         },
         {
-            "id": "2",
-            "host": "broker2.example.com",
-            "port": 9092,
-            "rack": "rack2",
-            "isController": False,
-        },
-        {
-            "id": "3",
-            "host": "broker3.example.com",
-            "port": 9092,
-            "rack": None,
-            "isController": False,
+            "id": node2.id_string,
+            "host": node2.host,
+            "port": node2.port,
+            "rack": node2.rack,
+            "isController": node2.id == controller.id,
         },
     ]
 
