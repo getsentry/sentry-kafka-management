@@ -1,7 +1,7 @@
 from unittest.mock import Mock
 
-from confluent_kafka import Node
-from confluent_kafka.admin import DescribeClusterResult
+from confluent_kafka import Node  # type: ignore[import-untyped]
+from confluent_kafka.admin import DescribeClusterResult  # type: ignore[import-untyped]
 
 from sentry_kafka_management.actions.clusters import describe_cluster
 
