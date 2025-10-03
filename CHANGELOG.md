@@ -1,3 +1,11 @@
+## 0.0.5
+
+### Various fixes & improvements
+
+- feat: add action for describing broker configs (#20) by @bmckerry
+- feat: switch from argparse to click (#18) by @bmckerry
+- clarify build action names (#17) by @bmckerry
+
 ## 0.0.4
 
 ### Various fixes & improvements
