@@ -9,7 +9,7 @@ from sentry_kafka_management.actions.brokers import describe_broker_configs
 
 
 def test_describe_broker_configs() -> None:
-    """Test listing topics."""
+    """Test describing broker configs."""
     expected = [
         {
             "config": "num.network.threads",
