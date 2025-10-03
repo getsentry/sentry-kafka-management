@@ -2,7 +2,7 @@ from typing import Any
 
 from confluent_kafka.admin import AdminClient  # type: ignore[import-untyped]
 
-KAFKA_TIMEOUT = 5
+from sentry_kafka_management.actions.conf import KAFKA_TIMEOUT
 
 
 def describe_cluster(
