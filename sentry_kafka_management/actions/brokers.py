@@ -6,7 +6,7 @@ from confluent_kafka.admin import (  # type: ignore[import-untyped]
     ConfigSource,
 )
 
-KAFKA_TIMEOUT = 5
+from sentry_kafka_management.actions.conf import KAFKA_TIMEOUT
 
 
 def describe_broker_configs(
