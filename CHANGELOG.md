@@ -1,3 +1,12 @@
+## 0.0.6
+
+### Various fixes & improvements
+
+- Use KAFKA_TIMEOUT from config (#19) by @lvthanh03
+- Add mypy type ignore (#19) by @lvthanh03
+- Fix mock values in tests (#19) by @lvthanh03
+- feat: add script for describe cluster (#19) by @lvthanh03
+
 ## 0.0.5
 
 ### Various fixes & improvements
