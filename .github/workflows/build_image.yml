@@ -8,12 +8,19 @@ on:
 
 jobs:
   build-and-push:
-    name: Build and push image to Google Artifact Registry
+    name: Build and push image to ${{ matrix.registry }} Google Artifact Registry
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write      # Required for GHCR
       id-token: write      # Required for Google Artifact Registry (GAR)
+    strategy:
+      matrix:
+        include:
+          - registry: single-region
+            image: us-central1-docker.pkg.dev/sentryio/sentry-kafka-management/image
+          - registry: multi-region
+            image: us-docker.pkg.dev/sentryio/sentry-kafka-management-mr/image
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
@@ -24,6 +31,6 @@ jobs:
           ghcr: false
           tag_nightly: false
           google_ar: true
-          google_ar_image_name: us-central1-docker.pkg.dev/sentryio/sentry-kafka-management/image
+          google_ar_image_name: ${{ matrix.image }}
           google_workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
           google_service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
