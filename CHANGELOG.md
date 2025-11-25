@@ -1,3 +1,8 @@
+## 0.0.7
+
+- feat(config): Add apply-config function by @lvthanh03 in [#22](https://github.com/getsentry/sentry-kafka-management/pull/22)
+- chore: Push images to SR and MR registries by @lvthanh03 in [#21](https://github.com/getsentry/sentry-kafka-management/pull/21)
+
 ## 0.0.6
 
 ### Various fixes & improvements
