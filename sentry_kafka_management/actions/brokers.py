@@ -13,6 +13,31 @@ from sentry_kafka_management.actions.clusters import describe_cluster
 from sentry_kafka_management.actions.conf import KAFKA_TIMEOUT
 
 
+@dataclass
+class ConfigChange:
+    broker_id: str
+    config_name: str
+    old_value: str | None = None
+    new_value: str | None = None
+
+    def to_sucesss(self) -> dict[str, Any]:
+        return {
+            "broker_id": self.broker_id,
+            "config_name": self.config_name,
+            "status": "success",
+            "old_value": self.old_value,
+            "new_value": self.new_value,
+        }
+
+    def to_error(self, error_message: str) -> dict[str, Any]:
+        return {
+            "broker_id": self.broker_id,
+            "config_name": self.config_name,
+            "status": "error",
+            "error": error_message,
+        }
+
+
 def describe_broker_configs(
     admin_client: AdminClient,
 ) -> Sequence[Mapping[str, Any]]:
@@ -73,13 +98,6 @@ def apply_config(
         `old_value`, `new_value` if successful or an `error` if unsuccessful.
     """
 
-    @dataclass
-    class ConfigChange:
-        broker_id: str
-        config_name: str
-        old_value: str | None
-        new_value: str | None
-
     if broker_ids is None:
         broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
 
@@ -105,24 +123,18 @@ def apply_config(
             # validate config exists
             if current_config is None:
                 error.append(
-                    {
-                        "broker_id": broker_id,
-                        "config_name": config_name,
-                        "status": "error",
-                        "error": f"Config '{config_name}' not found on broker {broker_id}",
-                    }
+                    ConfigChange(broker_id, config_name).to_error(
+                        f"Config '{config_name}' not found on broker {broker_id}"
+                    )
                 )
                 continue
 
             # validate config is not read only
             if current_config["isReadOnly"]:
                 error.append(
-                    {
-                        "broker_id": broker_id,
-                        "config_name": config_name,
-                        "status": "error",
-                        "error": f"Config '{config_name}' is read only on broker {broker_id}",
-                    }
+                    ConfigChange(broker_id, config_name).to_error(
+                        f"Config '{config_name}' is read only on broker {broker_id}"
+                    )
                 )
                 continue
 
@@ -139,8 +151,8 @@ def apply_config(
             )
             config_resources.append(config_resource)
             config_map[config_resource] = ConfigChange(
-                broker_id=broker_id,
-                config_name=config_name,
+                broker_id,
+                config_name,
                 old_value=current_config["value"] if current_config["value"] else None,
                 new_value=new_value,
             )
@@ -152,22 +164,7 @@ def apply_config(
             config_change = config_map[resource]
             try:
                 future.result(timeout=KAFKA_TIMEOUT)
-                success.append(
-                    {
-                        "broker_id": config_change.broker_id,
-                        "config_name": config_change.config_name,
-                        "status": "success",
-                        "old_value": config_change.old_value,
-                        "new_value": config_change.new_value,
-                    }
-                )
+                success.append(config_change.to_sucesss())
             except Exception as e:
-                error.append(
-                    {
-                        "broker_id": config_change.broker_id,
-                        "config_name": config_change.config_name,
-                        "status": "error",
-                        "error": str(e),
-                    }
-                )
+                error.append(config_change.to_error(str(e)))
     return success, error
