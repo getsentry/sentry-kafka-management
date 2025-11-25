@@ -10,7 +10,6 @@ def test_apply_emergency_config_command_success() -> None:
     runner = CliRunner()
 
     with runner.isolated_filesystem():
-        # Create a temporary test.yml file
         with open("test.yml", "w") as f:
             f.write("test: config")
 

@@ -30,7 +30,10 @@ def apply_emergency_config(
 
     Returns:
         List of dictionaries with operation details for each config change.
-        Each dict contains: broker_id, config_name, status, and either config_value or error.
+        Each dict contains: `broker_id`, `config_name`, `status`, `old_value`, and either
+        a `new_value` or an `error`.
+        If the status is "error", `error` will be a string describing the error.
+        If the status is "success", `new_value` will be the new value of the config.
     """
 
     if broker_ids is None:
