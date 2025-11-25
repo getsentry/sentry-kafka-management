@@ -1,11 +1,14 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
     ConfigResource,
     ConfigSource,
 )
 
-from sentry_kafka_management.actions.brokers import describe_broker_configs
+from sentry_kafka_management.actions.brokers import (
+    apply_config,
+    describe_broker_configs,
+)
 
 
 def test_describe_broker_configs() -> None:
@@ -44,3 +47,86 @@ def test_describe_broker_configs() -> None:
     result = describe_broker_configs(mock_client)
     mock_client.describe_configs.assert_called_once()
     assert result == expected
+
+
+def test_apply_config_success() -> None:
+    """Test successful config application."""
+    mock_client = Mock()
+
+    with (
+        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+        ) as mock_describe_broker_configs,
+    ):
+        mock_describe_cluster.return_value = [
+            {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
+        ]
+
+        mock_describe_broker_configs.return_value = [
+            {
+                "config": "message.max.bytes",
+                "value": "1000000",
+                "source": "DEFAULT_CONFIG",
+                "isDefault": True,
+                "isReadOnly": False,
+                "broker": "0",
+            }
+        ]
+
+        def mock_incremental_alter(resources: list[ConfigResource]) -> dict[ConfigResource, Mock]:
+            futures_dict = {}
+            for resource in resources:
+                future_mock = Mock()
+                future_mock.result.return_value = None
+                futures_dict[resource] = future_mock
+            return futures_dict
+
+        mock_client.incremental_alter_configs.side_effect = mock_incremental_alter
+
+        config_changes = {"message.max.bytes": "2000000"}
+        success, error = apply_config(mock_client, config_changes, ["0"])
+
+        assert len(success) == 1
+        assert len(error) == 0
+        assert success[0]["status"] == "success"
+        assert success[0]["broker_id"] == "0"
+        assert success[0]["config_name"] == "message.max.bytes"
+        assert success[0]["old_value"] == "1000000"
+        assert success[0]["new_value"] == "2000000"
+        mock_client.incremental_alter_configs.assert_called_once()
+
+
+def test_apply_config_readonly() -> None:
+    """Test that read-only configs are rejected."""
+    mock_client = Mock()
+
+    with (
+        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+        ) as mock_describe_broker_configs,
+    ):
+        mock_describe_cluster.return_value = [
+            {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
+        ]
+
+        mock_describe_broker_configs.return_value = [
+            {
+                "config": "log.dir",
+                "value": "/var/kafka/logs",
+                "source": "STATIC_BROKER_CONFIG",
+                "isDefault": False,
+                "isReadOnly": True,  # Read-only!
+                "broker": "0",
+            }
+        ]
+
+        config_changes = {"log.dir": "/new/path"}
+        success, error = apply_config(mock_client, config_changes, ["0"])
+
+        assert len(success) == 0
+        assert len(error) == 1
+        assert error[0]["status"] == "error"
+        assert "read only" in error[0]["error"]
+        mock_client.incremental_alter_configs.assert_not_called()
