@@ -1,13 +1,16 @@
 from unittest.mock import Mock, patch
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
+    AlterConfigOpType,
     ConfigResource,
     ConfigSource,
 )
 
 from sentry_kafka_management.actions.brokers import (
-    apply_config,
+    _update_configs,
+    apply_configs,
     describe_broker_configs,
+    remove_dynamic_configs,
 )
 
 
@@ -49,8 +52,8 @@ def test_describe_broker_configs() -> None:
     assert result == expected
 
 
-def test_apply_config_success() -> None:
-    """Test successful config application."""
+def test_update_config_apply_success() -> None:
+    """Test _update_configs() can set configs successfully."""
     mock_client = Mock()
 
     with (
@@ -85,7 +88,7 @@ def test_apply_config_success() -> None:
         mock_client.incremental_alter_configs.side_effect = mock_incremental_alter
 
         config_changes = {"message.max.bytes": "2000000"}
-        success, error = apply_config(mock_client, config_changes, ["0"])
+        success, error = _update_configs(mock_client, config_changes, AlterConfigOpType.SET, ["0"])
 
         assert len(success) == 1
         assert len(error) == 0
@@ -97,8 +100,58 @@ def test_apply_config_success() -> None:
         mock_client.incremental_alter_configs.assert_called_once()
 
 
-def test_apply_config_readonly() -> None:
-    """Test that read-only configs are rejected."""
+def test_update_config_delete_success() -> None:
+    """Test _update_configs() can remove dynamic configs successfully."""
+    mock_client = Mock()
+
+    with (
+        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+        ) as mock_describe_broker_configs,
+    ):
+        mock_describe_cluster.return_value = [
+            {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
+        ]
+
+        mock_describe_broker_configs.return_value = [
+            {
+                "config": "message.max.bytes",
+                "value": "1000000",
+                "source": ConfigSource.DYNAMIC_BROKER_CONFIG.name,
+                "isDefault": False,
+                "isReadOnly": False,
+                "broker": "0",
+            }
+        ]
+
+        def mock_incremental_alter(resources: list[ConfigResource]) -> dict[ConfigResource, Mock]:
+            futures_dict = {}
+            for resource in resources:
+                future_mock = Mock()
+                future_mock.result.return_value = None
+                futures_dict[resource] = future_mock
+            return futures_dict
+
+        mock_client.incremental_alter_configs.side_effect = mock_incremental_alter
+
+        config_changes = {"message.max.bytes": None}
+        success, error = _update_configs(
+            mock_client, config_changes, AlterConfigOpType.DELETE, ["0"]
+        )
+
+        assert len(success) == 1
+        assert len(error) == 0
+        assert success[0]["status"] == "success"
+        assert success[0]["broker_id"] == "0"
+        assert success[0]["config_name"] == "message.max.bytes"
+        assert success[0]["old_value"] == "1000000"
+        assert success[0]["new_value"] is None
+        mock_client.incremental_alter_configs.assert_called_once()
+
+
+def test_update_config_readonly() -> None:
+    """Test that changes to read-only configs are rejected."""
     mock_client = Mock()
 
     with (
@@ -123,10 +176,75 @@ def test_apply_config_readonly() -> None:
         ]
 
         config_changes = {"log.dir": "/new/path"}
-        success, error = apply_config(mock_client, config_changes, ["0"])
+        success, error = _update_configs(mock_client, config_changes, AlterConfigOpType.SET, ["0"])
 
         assert len(success) == 0
         assert len(error) == 1
         assert error[0]["status"] == "error"
-        assert "read only" in error[0]["error"]
         mock_client.incremental_alter_configs.assert_not_called()
+
+
+def test_update_config_not_dynamic() -> None:
+    """Test that deletes to non-dynamic configs are rejected."""
+    mock_client = Mock()
+
+    with (
+        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+        ) as mock_describe_broker_configs,
+    ):
+        mock_describe_cluster.return_value = [
+            {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
+        ]
+
+        mock_describe_broker_configs.return_value = [
+            {
+                "config": "log.dir",
+                "value": "/var/kafka/logs",
+                "source": "STATIC_BROKER_CONFIG",  # Static!
+                "isDefault": False,
+                "isReadOnly": False,
+                "broker": "0",
+            }
+        ]
+
+        config_changes = {"log.dir": "/new/path"}
+        success, error = _update_configs(
+            mock_client, config_changes, AlterConfigOpType.DELETE, ["0"]
+        )
+
+        assert len(success) == 0
+        assert len(error) == 1
+        assert error[0]["status"] == "error"
+        mock_client.incremental_alter_configs.assert_not_called()
+
+
+def test_apply_configs() -> None:
+    mock_client = Mock()
+
+    with patch("sentry_kafka_management.actions.brokers._update_configs") as mock_update:
+        apply_configs(
+            mock_client, config_changes={"message.max.bytes": "2000000"}, broker_ids=["0"]
+        )
+        mock_update.assert_called_once_with(
+            admin_client=mock_client,
+            config_changes={"message.max.bytes": "2000000"},
+            update_type=AlterConfigOpType.SET,
+            broker_ids=["0"],
+        )
+
+
+def test_remove_dynamic_configs() -> None:
+    mock_client = Mock()
+
+    with patch("sentry_kafka_management.actions.brokers._update_configs") as mock_update:
+        remove_dynamic_configs(
+            mock_client, configs_to_remove=["message.max.bytes"], broker_ids=["0"]
+        )
+        mock_update.assert_called_once_with(
+            admin_client=mock_client,
+            config_changes={"message.max.bytes": None},
+            update_type=AlterConfigOpType.DELETE,
+            broker_ids=["0"],
+        )

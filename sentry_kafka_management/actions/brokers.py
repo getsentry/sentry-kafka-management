@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, cast
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
     AdminClient,
@@ -78,29 +78,16 @@ def describe_broker_configs(
     return all_configs
 
 
-def apply_config(
+def _update_configs(
     admin_client: AdminClient,
-    config_changes: dict[str, str],
-    broker_ids: list[str] | None = None,
+    config_changes: Mapping[str, str | None],
+    update_type: AlterConfigOpType,
+    broker_ids: Sequence[str],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
-    Apply a configuration change to a broker.
-
-    Args:
-        admin_client: AdminClient instance
-        config_changes: Dictionary of config changes to apply
-        broker_ids: List of broker IDs to apply config to, if not provided, config will \
-            be applied to all brokers in the cluster.
-
-    Returns:
-        List of dictionaries with operation details for each config change.
-        Each dict contains: `broker_id`, `config_name`, `status`, and either the pair \
-        `old_value`, `new_value` if successful or an `error` if unsuccessful.
+    Performs the given update operation on the given brokers
+    for the given config changes.
     """
-
-    if broker_ids is None:
-        broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
-
     success: list[dict[str, Any]] = []
     error: list[dict[str, Any]] = []
 
@@ -129,19 +116,29 @@ def apply_config(
                 )
                 continue
 
-            # validate config is not read only
-            if current_config["isReadOnly"]:
-                error.append(
-                    ConfigChange(broker_id, config_name).to_error(
-                        f"Config '{config_name}' is read only on broker {broker_id}"
+            if update_type is AlterConfigOpType.SET:
+                # validate config is not read only when setting
+                if current_config["isReadOnly"]:
+                    error.append(
+                        ConfigChange(broker_id, config_name).to_error(
+                            f"Config '{config_name}' is read-only on broker {broker_id}"
+                        )
                     )
-                )
-                continue
+                    continue
+            if update_type is AlterConfigOpType.DELETE:
+                # validate config is set dynamically when deleting
+                if current_config["source"] is not ConfigSource.DYNAMIC_BROKER_CONFIG.name:
+                    error.append(
+                        ConfigChange(broker_id, config_name).to_error(
+                            f"Config '{config_name}' is not set dynamically on broker {broker_id}"
+                        )
+                    )
+                    continue
 
             config_entry = ConfigEntry(
                 name=config_name,
                 value=new_value,
-                incremental_operation=AlterConfigOpType.SET,
+                incremental_operation=update_type,
             )
 
             config_resource = ConfigResource(
@@ -168,3 +165,72 @@ def apply_config(
             except Exception as e:
                 error.append(config_change.to_error(str(e)))
     return success, error
+
+
+def apply_configs(
+    admin_client: AdminClient,
+    config_changes: Mapping[str, str],
+    broker_ids: Sequence[str] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """
+    Apply a configuration change to a broker.
+
+    Args:
+        admin_client: AdminClient instance
+        config_changes: Dictionary of config changes to apply
+        broker_ids: List of broker IDs to apply config to, if not provided, config will \
+            be applied to all brokers in the cluster.
+
+    Returns:
+        List of dictionaries with operation details for each config change.
+        Each dict contains: `broker_id`, `config_name`, `status`, and either the pair \
+        `old_value`, `new_value` if successful or an `error` if unsuccessful.
+    """
+
+    if broker_ids is None:
+        broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
+
+    cast(dict[str, str | None], config_changes)
+
+    return _update_configs(
+        admin_client=admin_client,
+        config_changes=config_changes,
+        update_type=AlterConfigOpType.SET,
+        broker_ids=broker_ids,
+    )
+
+
+def remove_dynamic_configs(
+    admin_client: AdminClient,
+    configs_to_remove: Sequence[str],
+    broker_ids: Sequence[str] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """
+    Removes any dynamically set values from the given configs
+    and switches them back to using either:
+    * the static value defined in `server.properties`, if one exists
+    * the config default value, if there's no static value defined for it
+
+    Args:
+        admin_client: AdminClient instance
+        config_changes: List of config changes to remove dynamic configs from
+        broker_ids: List of broker IDs to remove the given dynamic configs from
+
+    Returns:
+        List of dictionaries with details on each config change.
+        Each dict contains: `broker_id`, `config_name`, `status`, `old_value`, and either
+        a `new_value` or an `error`.
+        If the status is "error", `error` will be a string describing the error.
+    """
+    if broker_ids is None:
+        broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
+
+    # config values are ignored when deleting, so we set them to None
+    config_changes = cast(Mapping[str, str | None], {key: None for key in configs_to_remove})
+
+    return _update_configs(
+        admin_client=admin_client,
+        config_changes=config_changes,
+        update_type=AlterConfigOpType.DELETE,
+        broker_ids=broker_ids,
+    )

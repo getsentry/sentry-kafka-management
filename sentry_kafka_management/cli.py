@@ -5,7 +5,7 @@ from __future__ import annotations
 import click
 
 from sentry_kafka_management.scripts.brokers import (
-    apply_config,
+    apply_configs,
     describe_broker_configs,
 )
 from sentry_kafka_management.scripts.clusters import describe_cluster
@@ -15,7 +15,7 @@ COMMANDS = [
     describe_broker_configs,
     describe_cluster,
     list_topics,
-    apply_config,
+    apply_configs,
 ]
 
 
