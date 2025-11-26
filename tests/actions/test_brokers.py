@@ -10,6 +10,7 @@ from sentry_kafka_management.actions.brokers import (
     _update_configs,
     apply_configs,
     describe_broker_configs,
+    remove_dynamic_configs,
 )
 
 
@@ -157,6 +158,76 @@ def test_apply_config_validation() -> None:
 
         config_changes = {"log.dir": "/new/path"}
         success, error = apply_configs(mock_client, config_changes, ["0"])
+
+        assert len(success) == 0
+        assert len(error) == 1
+        assert error[0]["status"] == "error"
+        mock_client.incremental_alter_configs.assert_not_called()
+
+
+def test_remove_dynamic_configs_success() -> None:
+    mock_client = Mock()
+
+    with (
+        patch("sentry_kafka_management.actions.brokers._update_configs") as mock_update,
+        patch(
+            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+        ) as mock_describe_broker_configs,
+    ):
+        # _update_configs has to return something
+        mock_update.return_value = ([], [])
+
+        current_configs = [
+            {
+                "config": "message.max.bytes",
+                "value": "1000000",
+                "source": "DYNAMIC_BROKER_CONFIG",
+                "isDefault": False,
+                "isReadOnly": False,
+                "broker": "0",
+            }
+        ]
+        mock_describe_broker_configs.return_value = current_configs
+        remove_dynamic_configs(
+            mock_client, configs_to_remove=["message.max.bytes"], broker_ids=["0"]
+        )
+        mock_update.assert_called_once_with(
+            admin_client=mock_client,
+            config_changes={"message.max.bytes": None},
+            update_type=AlterConfigOpType.DELETE,
+            broker_ids=["0"],
+            current_configs=current_configs,
+        )
+
+
+def test_remove_dynamic_configs_validation() -> None:
+    """Test that deletes of non-dynamic configs are rejected."""
+    mock_client = Mock()
+
+    with (
+        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+        ) as mock_describe_broker_configs,
+        patch("sentry_kafka_management.actions.brokers._update_configs") as mock_update,
+    ):
+        mock_describe_cluster.return_value = [
+            {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
+        ]
+        mock_update.return_value = ([], [])
+
+        mock_describe_broker_configs.return_value = [
+            {
+                "config": "max.message.bytes",
+                "value": "/var/kafka/logs",
+                "source": "STATIC_BROKER_CONFIG",  # Not dynamic!
+                "isDefault": False,
+                "isReadOnly": False,
+                "broker": "0",
+            }
+        ]
+
+        success, error = remove_dynamic_configs(mock_client, ["max.message.bytes"], ["0"])
 
         assert len(success) == 0
         assert len(error) == 1
