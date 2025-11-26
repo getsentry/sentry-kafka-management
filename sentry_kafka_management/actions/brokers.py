@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence, cast
+from typing import Any, Mapping, Sequence
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
     AdminClient,
@@ -127,7 +127,7 @@ def _update_configs(
                     continue
             if update_type is AlterConfigOpType.DELETE:
                 # validate config is set dynamically when deleting
-                if current_config["source"] is not ConfigSource.DYNAMIC_BROKER_CONFIG.name:
+                if current_config["source"] != ConfigSource.DYNAMIC_BROKER_CONFIG.name:
                     error.append(
                         ConfigChange(broker_id, config_name).to_error(
                             f"Config '{config_name}' is not set dynamically on broker {broker_id}"
@@ -190,8 +190,6 @@ def apply_configs(
     if broker_ids is None:
         broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
 
-    cast(dict[str, str | None], config_changes)
-
     return _update_configs(
         admin_client=admin_client,
         config_changes=config_changes,
@@ -213,20 +211,20 @@ def remove_dynamic_configs(
 
     Args:
         admin_client: AdminClient instance
-        config_changes: List of config changes to remove dynamic configs from
+        configs_to_remove: List of config changes to remove dynamic configs from
         broker_ids: List of broker IDs to remove the given dynamic configs from
 
     Returns:
         List of dictionaries with details on each config change.
         Each dict contains: `broker_id`, `config_name`, `status`, `old_value`, and either
-        a `new_value` or an `error`.
+        a `new_value` (which will be `None`) or an `error`.
         If the status is "error", `error` will be a string describing the error.
     """
     if broker_ids is None:
         broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
 
     # config values are ignored when deleting, so we set them to None
-    config_changes = cast(Mapping[str, str | None], {key: None for key in configs_to_remove})
+    config_changes: Mapping[str, str | None] = {key: None for key in configs_to_remove}
 
     return _update_configs(
         admin_client=admin_client,

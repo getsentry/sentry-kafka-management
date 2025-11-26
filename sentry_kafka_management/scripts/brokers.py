@@ -179,7 +179,7 @@ def remove_dynamic_configs(
 
     Usage:
         kafka-scripts remove-dynamic-configs -c config.yml -n my-cluster
-        --config-changes 'message.max.bytes,max.connections'
+        --configs-to-remove 'message.max.bytes,max.connections'
         --broker-ids '0,1,2'
     """
     yaml_config = YamlKafkaConfig(config)
