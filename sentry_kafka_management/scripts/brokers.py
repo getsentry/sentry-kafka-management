@@ -5,7 +5,7 @@ from pathlib import Path
 
 import click
 
-from sentry_kafka_management.actions.brokers import apply_config as apply_config_action
+from sentry_kafka_management.actions.brokers import apply_configs as apply_config_action
 from sentry_kafka_management.actions.brokers import (
     describe_broker_configs as describe_broker_configs_action,
 )
@@ -87,7 +87,7 @@ def describe_broker_configs(config: Path, cluster: str) -> None:
         "if not provided, config will be applied to all brokers in the cluster"
     ),
 )
-def apply_config(
+def apply_configs(
     config: Path,
     cluster: str,
     config_changes: dict[str, str],

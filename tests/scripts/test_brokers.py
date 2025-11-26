@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from click.testing import CliRunner
 
 from sentry_kafka_management.scripts.brokers import (
-    apply_config,
+    apply_configs,
     describe_broker_configs,
 )
 
@@ -68,7 +68,7 @@ def test_apply_config_command_success() -> None:
             )
 
             result = runner.invoke(
-                apply_config,
+                apply_configs,
                 [
                     "-c",
                     "test.yml",
@@ -111,7 +111,7 @@ def test_apply_config_command_failure() -> None:
         )
 
         result = runner.invoke(
-            apply_config,
+            apply_configs,
             [
                 "-c",
                 "test.yml",
