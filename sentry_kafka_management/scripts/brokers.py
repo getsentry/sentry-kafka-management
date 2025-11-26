@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import MutableSequence
+from typing import Sequence
 
 import click
 
@@ -160,13 +160,13 @@ def apply_configs(
     callback=parse_broker_ids,
     help=(
         "Comma separated list of broker IDs to remove config from, "
-        "if not provided, config will be applied to all brokers in the cluster"
+        "if not provided, config will be removed from all brokers in the cluster"
     ),
 )
 def remove_dynamic_configs(
     config: Path,
     cluster: str,
-    configs_to_remove: MutableSequence[str],
+    configs_to_remove: Sequence[str],
     broker_ids: list[str] | None = None,
 ) -> None:
     """

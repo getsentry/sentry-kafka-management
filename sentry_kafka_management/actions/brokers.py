@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Mapping, MutableMapping, MutableSequence, Sequence
+from typing import Any, Mapping, MutableMapping, Sequence
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
     AdminClient,
@@ -222,7 +222,7 @@ def apply_configs(
 
 def remove_dynamic_configs(
     admin_client: AdminClient,
-    configs_to_remove: MutableSequence[str],
+    configs_to_remove: Sequence[str],
     broker_ids: Sequence[str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
@@ -266,7 +266,7 @@ def remove_dynamic_configs(
                 )
                 non_valid_configs.add(config_name)
                 continue
-            # validate config is not read-only when setting
+            # validate config is dynamic before removing
             if current_config["source"] != ConfigSource.DYNAMIC_BROKER_CONFIG.name:
                 validation_errors.append(
                     ConfigChange(broker_id, config_name).to_error(
