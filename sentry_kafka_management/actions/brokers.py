@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Mapping, MutableMapping, Sequence
+from typing import Any, Mapping, MutableMapping, MutableSequence, Sequence
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
     AdminClient,
@@ -218,3 +218,75 @@ def apply_configs(
     )
 
     return success, errors + validation_errors
+
+
+def remove_dynamic_configs(
+    admin_client: AdminClient,
+    configs_to_remove: MutableSequence[str],
+    broker_ids: Sequence[str] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """
+    Removes any dynamically set values from the given configs
+    and switches them back to using either:
+    * the static value defined in `server.properties`, if one exists
+    * the config default value, if there's no static value defined for it
+
+    Args:
+        admin_client: AdminClient instance
+        configs_to_remove: List of config changes to remove dynamic configs from
+        broker_ids: List of broker IDs to remove the given dynamic configs from
+
+    Returns:
+        List of dictionaries with details on each config change.
+        Each dict contains: `broker_id`, `config_name`, `status`, `old_value`, and either
+        a `new_value` (which will be `None`) or an `error`.
+        If the status is "error", `error` will be a string describing the error.
+    """
+    if broker_ids is None:
+        broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
+
+    # validate configs
+    validation_errors: list[dict[str, Any]] = []
+    non_valid_configs: set[str] = set()
+    current_configs = describe_broker_configs(admin_client)
+    for broker_id in broker_ids:
+        for config_name in configs_to_remove:
+            current_config = _get_config_from_list(
+                current_configs,
+                config_name,
+                broker_id,
+            )
+
+            # validate config exists
+            if current_config is None:
+                validation_errors.append(
+                    ConfigChange(broker_id, config_name).to_error(
+                        f"Config '{config_name}' not found on broker {broker_id}"
+                    )
+                )
+                non_valid_configs.add(config_name)
+                continue
+            # validate config is not read-only when setting
+            if current_config["source"] != ConfigSource.DYNAMIC_BROKER_CONFIG.name:
+                validation_errors.append(
+                    ConfigChange(broker_id, config_name).to_error(
+                        f"Config '{config_name}' is not set dynamically on broker {broker_id}"
+                    )
+                )
+                non_valid_configs.add(config_name)
+                continue
+
+    # config values are ignored when deleting, so we set them to None
+    config_changes: Mapping[str, str | None] = {
+        key: None for key in configs_to_remove if key not in non_valid_configs
+    }
+
+    success, error = _update_configs(
+        admin_client=admin_client,
+        config_changes=config_changes,
+        update_type=AlterConfigOpType.DELETE,
+        broker_ids=broker_ids,
+        current_configs=current_configs,
+    )
+
+    return success, error + validation_errors

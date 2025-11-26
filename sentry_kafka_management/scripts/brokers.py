@@ -2,12 +2,16 @@
 
 import json
 from pathlib import Path
+from typing import MutableSequence
 
 import click
 
 from sentry_kafka_management.actions.brokers import apply_configs as apply_config_action
 from sentry_kafka_management.actions.brokers import (
     describe_broker_configs as describe_broker_configs_action,
+)
+from sentry_kafka_management.actions.brokers import (
+    remove_dynamic_configs as remove_dynamic_configs_action,
 )
 from sentry_kafka_management.brokers import YamlKafkaConfig
 from sentry_kafka_management.connectors.admin import get_admin_client
@@ -20,6 +24,12 @@ def parse_config_changes(
         return {key: value for key, value in [change.split("=") for change in value.split(",")]}
     except ValueError as e:
         raise click.BadParameter(f"Invalid config: {e}")
+
+
+def parse_configs_to_remove(
+    ctx: click.Context, param: click.Parameter, value: str
+) -> list[str] | None:
+    return value.split(",")
 
 
 def parse_broker_ids(
@@ -122,3 +132,71 @@ def apply_configs(
         click.echo(json.dumps(error, indent=2))
         raise click.ClickException("One or more config changes failed")
     click.echo("All config changes applied successfully")
+
+
+@click.command()
+@click.option(
+    "-c",
+    "--config",
+    type=click.Path(exists=True, path_type=Path),
+    required=True,
+    help="Path to the YAML configuration file",
+)
+@click.option(
+    "-n",
+    "--cluster",
+    required=True,
+    help="Name of the cluster",
+)
+@click.option(
+    "--configs-to-remove",
+    required=True,
+    callback=parse_configs_to_remove,
+    help="Comma separated list of config names to remove from dynamic configs.",
+)
+@click.option(
+    "--broker-ids",
+    required=False,
+    callback=parse_broker_ids,
+    help=(
+        "Comma separated list of broker IDs to remove config from, "
+        "if not provided, config will be applied to all brokers in the cluster"
+    ),
+)
+def remove_dynamic_configs(
+    config: Path,
+    cluster: str,
+    configs_to_remove: MutableSequence[str],
+    broker_ids: list[str] | None = None,
+) -> None:
+    """
+    Removes dynamic configs from a broker.
+
+    When a dynamic config is removed from a broker, the value for that config will
+    revert to being either:
+    * the static value defined in `server.properties`, if one exists
+    * the config default value, if there's no static value defined for it
+
+    Usage:
+        kafka-scripts remove-dynamic-configs -c config.yml -n my-cluster
+        --configs-to-remove 'message.max.bytes,max.connections'
+        --broker-ids '0,1,2'
+    """
+    yaml_config = YamlKafkaConfig(config)
+    cluster_config = yaml_config.get_clusters()[cluster]
+    client = get_admin_client(cluster_config)
+
+    success, error = remove_dynamic_configs_action(
+        client,
+        configs_to_remove,
+        broker_ids,
+    )
+
+    if success:
+        click.echo("Success:")
+        click.echo(json.dumps(success, indent=2))
+    if error:
+        click.echo("Error:")
+        click.echo(json.dumps(error, indent=2))
+        raise click.ClickException("One or more config removals failed")
+    click.echo("All dynamic configs removed successfully")

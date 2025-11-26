@@ -7,15 +7,17 @@ import click
 from sentry_kafka_management.scripts.brokers import (
     apply_configs,
     describe_broker_configs,
+    remove_dynamic_configs,
 )
 from sentry_kafka_management.scripts.clusters import describe_cluster
 from sentry_kafka_management.scripts.topics import list_topics
 
 COMMANDS = [
+    apply_configs,
     describe_broker_configs,
     describe_cluster,
     list_topics,
-    apply_configs,
+    remove_dynamic_configs,
 ]
 
 
