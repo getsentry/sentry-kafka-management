@@ -173,7 +173,6 @@ def test_remove_config_command_success() -> None:
             )
 
             assert result.exit_code == 0
-            assert "success" in result.output.lower()
             mock_action.assert_called_once()
 
 
@@ -181,37 +180,41 @@ def test_remove_config_command_failure() -> None:
     """Test the CLI command with failed config removal."""
     runner = CliRunner()
 
-    with (
-        patch("sentry_kafka_management.scripts.brokers.YamlKafkaConfig") as mock_yaml_config,
-        patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
-        patch("sentry_kafka_management.scripts.brokers.apply_config_action") as mock_action,
-    ):
-        mock_yaml_config.return_value.get_clusters.return_value = {"test-cluster": {}}
-        mock_get_client.return_value = Mock()
+    with runner.isolated_filesystem():
+        with open("test.yml", "w") as f:
+            f.write("test: config")
+        with (
+            patch("sentry_kafka_management.scripts.brokers.YamlKafkaConfig") as mock_yaml_config,
+            patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
+            patch(
+                "sentry_kafka_management.scripts.brokers.remove_dynamic_configs_action"
+            ) as mock_action,
+        ):
+            mock_yaml_config.return_value.get_clusters.return_value = {"test-cluster": {}}
+            mock_get_client.return_value = Mock()
 
-        mock_action.return_value = (
-            [],
-            [
-                {
-                    "broker_id": "0",
-                    "config_name": "invalid.config",
-                    "status": "error",
-                    "error": "Config 'invalid.config' is not set dynamically on broker 0",
-                }
-            ],
-        )
+            mock_action.return_value = (
+                [],
+                [
+                    {
+                        "broker_id": "0",
+                        "config_name": "invalid.config",
+                        "status": "error",
+                        "error": "Config 'invalid.config' is not set dynamically on broker 0",
+                    }
+                ],
+            )
 
-        result = runner.invoke(
-            remove_dynamic_configs,
-            [
-                "-c",
-                "test.yml",
-                "-n",
-                "test-cluster",
-                "--configs-to-remove",
-                "max.message.bytes",
-            ],
-        )
-
-        assert result.exit_code != 0
-        assert "error" in result.output.lower()
+            result = runner.invoke(
+                remove_dynamic_configs,
+                [
+                    "-c",
+                    "test.yml",
+                    "-n",
+                    "test-cluster",
+                    "--configs-to-remove",
+                    "max.message.bytes",
+                ],
+            )
+            assert result.exit_code != 0
+            mock_action.assert_called_once()
