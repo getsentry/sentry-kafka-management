@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 from click.testing import CliRunner
@@ -68,19 +69,22 @@ def test_apply_config_command_success() -> None:
                 [],
             )
 
-            result = runner.invoke(
-                apply_configs,
-                [
-                    "-c",
-                    "test.yml",
-                    "-n",
-                    "test-cluster",
-                    "--config-changes",
-                    "message.max.bytes=2000000",
-                    "--broker-ids",
-                    "0",
-                ],
-            )
+            with TemporaryDirectory() as tmpdir:
+                result = runner.invoke(
+                    apply_configs,
+                    [
+                        "-c",
+                        "test.yml",
+                        "-n",
+                        "test-cluster",
+                        "--config-changes",
+                        "message.max.bytes=2000000",
+                        "--broker-ids",
+                        "0",
+                        "--configs-record-dir",
+                        tmpdir,
+                    ],
+                )
 
             assert result.exit_code == 0
             assert "success" in result.output.lower()
@@ -111,17 +115,20 @@ def test_apply_config_command_failure() -> None:
             ],
         )
 
-        result = runner.invoke(
-            apply_configs,
-            [
-                "-c",
-                "test.yml",
-                "-n",
-                "test-cluster",
-                "--config-changes",
-                "invalid.config=value",
-            ],
-        )
+        with TemporaryDirectory() as tmpdir:
+            result = runner.invoke(
+                apply_configs,
+                [
+                    "-c",
+                    "test.yml",
+                    "-n",
+                    "test-cluster",
+                    "--config-changes",
+                    "invalid.config=value",
+                    "--configs-record-dir",
+                    tmpdir,
+                ],
+            )
 
         assert result.exit_code != 0
         assert "error" in result.output.lower()
@@ -157,7 +164,6 @@ def test_remove_config_command_success() -> None:
                 ],
                 [],
             )
-
             result = runner.invoke(
                 remove_dynamic_configs,
                 [
@@ -171,7 +177,6 @@ def test_remove_config_command_success() -> None:
                     "0",
                 ],
             )
-
             assert result.exit_code == 0
             mock_action.assert_called_once()
 
