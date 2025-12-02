@@ -109,42 +109,33 @@ def _update_configs(
     success: list[dict[str, Any]] = []
     error: list[dict[str, Any]] = []
 
-    config_resources: dict[str, ConfigResource] = {}
-    # Track ConfigChange objects for reporting
-    change_map: dict[str, list[ConfigChange]] = {}
+    change_list: list[tuple[ConfigChange, ConfigResource]] = []
 
     for config_change in config_changes:
         broker_id = config_change.broker_id
-        config_name = config_change.config_name
-        new_value = config_change.new_value
-
-        if broker_id not in config_resources:
-            config_resources[broker_id] = ConfigResource(
-                restype=ConfigResource.Type.BROKER, name=broker_id
-            )
-            change_map[broker_id] = []
-
         config_entry = ConfigEntry(
-            name=config_name,
-            value=new_value,
+            name=config_change.config_name,
+            value=config_change.new_value,
             incremental_operation=update_type,
         )
-        config_resources[broker_id].add_incremental_config(config_entry)
-        change_map[broker_id].append(config_change)
+        config_resource = ConfigResource(
+            restype=ConfigResource.Type.BROKER,
+            name=broker_id,
+            incremental_configs=[config_entry],
+        )
+        change_list.append((config_change, config_resource))
 
-    if config_resources:
-        for broker_id, config_resource in config_resources.items():
-            futures = admin_client.incremental_alter_configs([config_resource])
-            for _, future in futures.items():
-                try:
-                    future.result(timeout=KAFKA_TIMEOUT)
-                    success.extend(
-                        [config_change.to_success() for config_change in change_map[broker_id]]
-                    )
-                except Exception as e:
-                    error.extend(
-                        [config_change.to_error(str(e)) for config_change in change_map[broker_id]]
-                    )
+    for config_change, config_resource in change_list:
+        # we have to make an AdminClient request for each config change since Kafka
+        # incremental_alter_configs returns None or throws a generic KafkaException
+        # so we can't use the result to determine which config changes failed
+        futures = admin_client.incremental_alter_configs([config_resource])
+        for _, future in futures.items():
+            try:
+                future.result(timeout=KAFKA_TIMEOUT)
+                success.extend([config_change.to_success()])
+            except Exception as e:
+                error.extend([config_change.to_error(str(e))])
     return success, error
 
 
