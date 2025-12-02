@@ -7,6 +7,7 @@ from confluent_kafka.admin import (  # type: ignore[import-untyped]
 )
 
 from sentry_kafka_management.actions.brokers import (
+    ConfigChange,
     _update_configs,
     apply_configs,
     describe_broker_configs,
@@ -66,22 +67,18 @@ def test_update_config_apply() -> None:
 
     mock_client.incremental_alter_configs.side_effect = mock_incremental_alter
 
-    config_changes = {"message.max.bytes": "2000000"}
+    config_changes = [
+        ConfigChange(
+            broker_id="0",
+            config_name="message.max.bytes",
+            old_value="1000000",
+            new_value="2000000",
+        )
+    ]
     success, error = _update_configs(
         mock_client,
         config_changes,
         AlterConfigOpType.SET,
-        ["0"],
-        [
-            {
-                "config": "message.max.bytes",
-                "value": "1000000",
-                "source": "DEFAULT_CONFIG",
-                "isDefault": True,
-                "isReadOnly": False,
-                "broker": "0",
-            }
-        ],
     )
 
     assert len(success) == 1
@@ -122,10 +119,15 @@ def test_apply_configs_success() -> None:
         )
         mock_update.assert_called_once_with(
             admin_client=mock_client,
-            config_changes={"message.max.bytes": "2000000"},
+            config_changes=[
+                ConfigChange(
+                    broker_id="0",
+                    config_name="message.max.bytes",
+                    old_value="1000000",
+                    new_value="2000000",
+                )
+            ],
             update_type=AlterConfigOpType.SET,
-            broker_ids=["0"],
-            current_configs=current_configs,
         )
 
 
@@ -173,9 +175,13 @@ def test_remove_dynamic_configs_success() -> None:
         patch(
             "sentry_kafka_management.actions.brokers.describe_broker_configs"
         ) as mock_describe_broker_configs,
+        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
     ):
         # _update_configs has to return something
         mock_update.return_value = ([], [])
+        mock_describe_cluster.return_value = [
+            {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
+        ]
 
         current_configs = [
             {
@@ -193,10 +199,15 @@ def test_remove_dynamic_configs_success() -> None:
         )
         mock_update.assert_called_once_with(
             admin_client=mock_client,
-            config_changes={"message.max.bytes": None},
+            config_changes=[
+                ConfigChange(
+                    broker_id="0",
+                    config_name="message.max.bytes",
+                    old_value="1000000",
+                    new_value=None,
+                )
+            ],
             update_type=AlterConfigOpType.DELETE,
-            broker_ids=["0"],
-            current_configs=current_configs,
         )
 
 
