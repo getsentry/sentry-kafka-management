@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
@@ -20,7 +21,7 @@ class ConfigChange:
     old_value: str | None = None
     new_value: str | None = None
 
-    def to_sucesss(self) -> dict[str, Any]:
+    def to_success(self) -> dict[str, Any]:
         return {
             "broker_id": self.broker_id,
             "config_name": self.config_name,
@@ -78,6 +79,23 @@ def describe_broker_configs(
     return all_configs
 
 
+def record_config(config_name: str, config_value: str, record_dir: Path) -> None:
+    """
+    Takes a mapping of config names to config values.
+    Records each of these in the dir specified by `record_dir`,
+    creating files with names equal to the config names, each containing the config's value.
+    Will overwrite any existing files.
+
+    Args:
+        config_name: Name of the config.
+        config_value: Value of the config.
+        record_dir: Directory to record configs in.
+    """
+    assert record_dir.is_dir(), "record_dir must be a directory."
+    with open(record_dir / config_name, "w") as f:
+        f.write(config_value)
+
+
 def _get_config_from_list(
     config_list: Sequence[Mapping[str, Any]],
     config_name: str,
@@ -103,6 +121,7 @@ def _update_configs(
     update_type: AlterConfigOpType,
     broker_ids: Sequence[str],
     current_configs: Sequence[Mapping[str, Any]],
+    configs_record_dir: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Performs the given update operation on the given brokers
@@ -148,7 +167,12 @@ def _update_configs(
             config_change = config_map[resource]
             try:
                 future.result(timeout=KAFKA_TIMEOUT)
-                success.append(config_change.to_sucesss())
+                # record the applied value, if we applied a new value and it succeeded
+                if configs_record_dir and config_change.new_value:
+                    record_config(
+                        config_change.config_name, config_change.new_value, configs_record_dir
+                    )
+                success.append(config_change.to_success())
             except Exception as e:
                 error.append(config_change.to_error(str(e)))
     return success, error
@@ -158,6 +182,7 @@ def apply_configs(
     admin_client: AdminClient,
     config_changes: MutableMapping[str, str],
     broker_ids: Sequence[str] | None = None,
+    configs_record_dir: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Apply a configuration change to a broker.
@@ -215,6 +240,7 @@ def apply_configs(
         update_type=AlterConfigOpType.SET,
         broker_ids=broker_ids,
         current_configs=current_configs,
+        configs_record_dir=configs_record_dir,
     )
 
     return success, errors + validation_errors
