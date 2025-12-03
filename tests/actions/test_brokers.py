@@ -1,3 +1,5 @@
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
@@ -11,6 +13,7 @@ from sentry_kafka_management.actions.brokers import (
     _update_configs,
     apply_configs,
     describe_broker_configs,
+    record_config,
     remove_dynamic_configs,
 )
 
@@ -53,6 +56,28 @@ def test_describe_broker_configs() -> None:
     assert result == expected
 
 
+def test_record_config() -> None:
+    with TemporaryDirectory() as tmpdir:
+        dir_path = Path(tmpdir)
+        record_config(
+            "num.network.threads",
+            "4",
+            dir_path,
+        )
+        with open(dir_path / "num.network.threads") as f:
+            value = f.read()
+            assert value == "4"
+        # ensure we overwrite the file properly
+        record_config(
+            "num.network.threads",
+            "5",
+            dir_path,
+        )
+        with open(dir_path / "num.network.threads") as f:
+            value = f.read()
+            assert value == "5"
+
+
 def test_update_config_apply() -> None:
     """Test _update_configs() can set configs successfully."""
     mock_client = Mock()
@@ -75,20 +100,24 @@ def test_update_config_apply() -> None:
             new_value="2000000",
         )
     ]
-    success, error = _update_configs(
-        mock_client,
-        config_changes,
-        AlterConfigOpType.SET,
-    )
+    with TemporaryDirectory() as tmpdir:
+        dir_path = Path(tmpdir)
+        success, error = _update_configs(
+            mock_client,
+            config_changes,
+            AlterConfigOpType.SET,
+            configs_record_dir=dir_path,
+        )
 
-    assert len(success) == 1
-    assert len(error) == 0
-    assert success[0]["status"] == "success"
-    assert success[0]["broker_id"] == "0"
-    assert success[0]["config_name"] == "message.max.bytes"
-    assert success[0]["old_value"] == "1000000"
-    assert success[0]["new_value"] == "2000000"
-    mock_client.incremental_alter_configs.assert_called_once()
+        assert len(success) == 1
+        assert len(error) == 0
+        assert success[0]["status"] == "success"
+        assert success[0]["broker_id"] == "0"
+        assert success[0]["config_name"] == "message.max.bytes"
+        assert success[0]["old_value"] == "1000000"
+        assert success[0]["new_value"] == "2000000"
+        assert len(list(dir_path.iterdir())) == 1
+        mock_client.incremental_alter_configs.assert_called_once()
 
 
 def test_apply_configs_success() -> None:
@@ -128,6 +157,7 @@ def test_apply_configs_success() -> None:
                 )
             ],
             update_type=AlterConfigOpType.SET,
+            configs_record_dir=None,
         )
 
 

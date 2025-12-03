@@ -97,11 +97,23 @@ def describe_broker_configs(config: Path, cluster: str) -> None:
         "if not provided, config will be applied to all brokers in the cluster"
     ),
 )
+@click.option(
+    "--configs-record-dir",
+    required=False,
+    type=str,
+    help=(
+        "Path to a directory to record config changes in."
+        "Config changes will be recorded as files in the dir with"
+        "filenames equal to the config names, each containing the config's value."
+        "Will not record invalid configs."
+    ),
+)
 def apply_configs(
     config: Path,
     cluster: str,
     config_changes: dict[str, str],
     broker_ids: list[str] | None = None,
+    configs_record_dir: str | None = None,
 ) -> None:
     """
     Apply a configuration change to a broker.
@@ -118,10 +130,12 @@ def apply_configs(
     cluster_config = yaml_config.get_clusters()[cluster]
     client = get_admin_client(cluster_config)
 
+    record_dir = Path(configs_record_dir) if configs_record_dir else None
     success, error = apply_config_action(
         client,
         config_changes,
         broker_ids,
+        record_dir,
     )
 
     if success:
