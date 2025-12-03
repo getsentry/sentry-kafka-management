@@ -159,9 +159,9 @@ def _update_configs(
                         config_change.new_value,
                         configs_record_dir,
                     )
-                success.extend([config_change.to_success()])
+                success.append(config_change.to_success())
             except Exception as e:
-                error.extend([config_change.to_error(str(e))])
+                error.append(config_change.to_error(str(e)))
     return success, error
 
 
@@ -191,7 +191,7 @@ def apply_configs(
     # validate configs
     config_change_list: list[ConfigChange] = []
     validation_errors: list[dict[str, Any]] = []
-    non_valid_configs: set[str] = set()
+    valid_broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
     current_configs = describe_broker_configs(admin_client)
     for broker_id in broker_ids:
         for config_name, new_value in config_changes.items():
@@ -200,24 +200,19 @@ def apply_configs(
                 config_name,
                 broker_id,
             )
-
-            # validate config exists
-            if current_config is None:
-                validation_errors.append(
-                    ConfigChange(broker_id, config_name).to_error(
-                        f"Config '{config_name}' not found on broker {broker_id}"
-                    )
-                )
-                non_valid_configs.add(config_name)
+            # broker and config basic validation
+            validate = basic_validation(broker_id, valid_broker_ids, config_name, current_config)
+            if validate:
+                validation_errors.append(ConfigChange(broker_id, config_name).to_error(validate))
                 continue
             # validate config is not read-only when setting
+            assert current_config is not None
             if current_config["isReadOnly"]:
                 validation_errors.append(
                     ConfigChange(broker_id, config_name).to_error(
                         f"Config '{config_name}' is read-only on broker {broker_id}"
                     )
                 )
-                non_valid_configs.add(config_name)
                 continue
             config_change_list.append(
                 ConfigChange(
@@ -227,8 +222,6 @@ def apply_configs(
                     new_value=new_value,
                 )
             )
-    for config in non_valid_configs:
-        del config_changes[config]
 
     success, errors = _update_configs(
         admin_client=admin_client,
@@ -269,7 +262,6 @@ def remove_dynamic_configs(
     config_change_list: list[ConfigChange] = []
     valid_broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
     validation_errors: list[dict[str, Any]] = []
-    non_valid_configs: set[str] = set()
     current_configs = describe_broker_configs(admin_client)
     for broker_id in broker_ids:
         for config_name in configs_to_remove:
@@ -278,36 +270,20 @@ def remove_dynamic_configs(
                 config_name,
                 broker_id,
             )
-
-            # validate broker exists
-            if broker_id not in valid_broker_ids:
-                validation_errors.append(
-                    ConfigChange(broker_id, config_name).to_error(
-                        f"Broker {broker_id} not found in cluster"
-                    )
-                )
-                non_valid_configs.add(broker_id)
-                continue
-
-            # validate config exists
-            if current_config is None:
-                validation_errors.append(
-                    ConfigChange(broker_id, config_name).to_error(
-                        f"Config '{config_name}' not found on broker {broker_id}"
-                    )
-                )
-                non_valid_configs.add(config_name)
+            # broker and config basic validation
+            validate = basic_validation(broker_id, valid_broker_ids, config_name, current_config)
+            if validate:
+                validation_errors.append(ConfigChange(broker_id, config_name).to_error(validate))
                 continue
             # validate config is dynamic before removing
+            assert current_config is not None
             if current_config["source"] != ConfigSource.DYNAMIC_BROKER_CONFIG.name:
                 validation_errors.append(
                     ConfigChange(broker_id, config_name).to_error(
                         f"Config '{config_name}' is not set dynamically on broker {broker_id}"
                     )
                 )
-                non_valid_configs.add(config_name)
                 continue
-
             config_change_list.append(
                 ConfigChange(
                     broker_id=broker_id,
@@ -324,3 +300,19 @@ def remove_dynamic_configs(
     )
 
     return success, error + validation_errors
+
+
+def basic_validation(
+    broker_id: str,
+    valid_broker_ids: Sequence[str],
+    config_name: str,
+    current_config: Mapping[str, Any] | None,
+) -> str | None:
+    """
+    Performs basic validation of a broker and config.
+    """
+    if broker_id not in valid_broker_ids:
+        return f"Broker {broker_id} not found in cluster"
+    if current_config is None:
+        return f"Config '{config_name}' not found on broker {broker_id}"
+    return None
