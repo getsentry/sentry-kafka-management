@@ -28,6 +28,9 @@ RUN uv pip install --system -r pyproject.toml
 # Copy application source (owned by non-root user)
 COPY --chown=kafka_mgmt:kafka_mgmt sentry_kafka_management/ sentry_kafka_management/
 
+# Install the package
+RUN uv pip install --system --no-deps .
+
 # Ensure workspace ownership
 RUN chown -R kafka_mgmt:kafka_mgmt /app
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import click
 
+from sentry_kafka_management import __version__
 from sentry_kafka_management.scripts.brokers import (
     apply_configs,
     describe_broker_configs,
@@ -22,6 +23,7 @@ COMMANDS = [
 
 
 @click.group()
+@click.version_option(version=__version__, prog_name="sentry-kafka-management")
 def main() -> None:
     """
     CLI entrypoint for sentry-kafka-management.
