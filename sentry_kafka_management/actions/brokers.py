@@ -145,9 +145,9 @@ def _update_configs(
         change_list.append((config_change, config_resource))
 
     for config_change, config_resource in change_list:
-        # we have to make an AdminClient request for each config change since Kafka
-        # incremental_alter_configs returns None or throws a generic KafkaException
-        # so we can't use the result to determine which config changes failed
+        # we make an AdminClient request for each config change to get better error messages
+        # since incremental_alter_configs returns None or throws a generic KafkaException
+        # for all config changes if we batch them together
         futures = admin_client.incremental_alter_configs([config_resource])
         for _, future in futures.items():
             try:
