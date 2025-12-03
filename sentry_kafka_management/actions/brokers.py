@@ -17,7 +17,7 @@ from sentry_kafka_management.actions.conf import KAFKA_TIMEOUT
 @dataclass
 class ConfigChange:
     broker_id: str
-    config_name: str
+    config_name: str | None = None
     old_value: str | None = None
     new_value: str | None = None
 
@@ -117,10 +117,8 @@ def _get_config_from_list(
 
 def _update_configs(
     admin_client: AdminClient,
-    config_changes: Mapping[str, str | None],
+    config_changes: list[ConfigChange],
     update_type: AlterConfigOpType,
-    broker_ids: Sequence[str],
-    current_configs: Sequence[Mapping[str, Any]],
     configs_record_dir: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
@@ -130,47 +128,36 @@ def _update_configs(
     success: list[dict[str, Any]] = []
     error: list[dict[str, Any]] = []
 
-    config_resources: list[ConfigResource] = []
-    config_map: dict[ConfigResource, ConfigChange] = {}
+    change_list: list[tuple[ConfigChange, ConfigResource]] = []
 
-    for broker_id in broker_ids:
-        for config_name, new_value in config_changes.items():
-            current_config = _get_config_from_list(
-                current_configs,
-                config_name,
-                broker_id,
-            )
+    for config_change in config_changes:
+        broker_id = config_change.broker_id
+        config_entry = ConfigEntry(
+            name=config_change.config_name,
+            value=config_change.new_value,
+            incremental_operation=update_type,
+        )
+        config_resource = ConfigResource(
+            restype=ConfigResource.Type.BROKER,
+            name=broker_id,
+            incremental_configs=[config_entry],
+        )
+        change_list.append((config_change, config_resource))
 
-            config_entry = ConfigEntry(
-                name=config_name,
-                value=new_value,
-                incremental_operation=update_type,
-            )
-
-            config_resource = ConfigResource(
-                restype=ConfigResource.Type.BROKER,
-                name=broker_id,
-                incremental_configs=[config_entry],
-            )
-            config_resources.append(config_resource)
-            config_map[config_resource] = ConfigChange(
-                broker_id,
-                config_name,
-                old_value=current_config.get("value") if current_config else None,
-                new_value=new_value,
-            )
-
-    if config_resources:
-        futures = admin_client.incremental_alter_configs(config_resources)
-
-        for resource, future in futures.items():
-            config_change = config_map[resource]
+    for config_change, config_resource in change_list:
+        # we make an AdminClient request for each config change to get better error messages
+        # since incremental_alter_configs returns None or throws a generic KafkaException
+        # for all config changes if we batch them together
+        futures = admin_client.incremental_alter_configs([config_resource])
+        for _, future in futures.items():
             try:
                 future.result(timeout=KAFKA_TIMEOUT)
                 # record the applied value, if we applied a new value and it succeeded
-                if configs_record_dir and config_change.new_value:
+                if configs_record_dir and config_change.config_name and config_change.new_value:
                     record_config(
-                        config_change.config_name, config_change.new_value, configs_record_dir
+                        config_change.config_name,
+                        config_change.new_value,
+                        configs_record_dir,
                     )
                 success.append(config_change.to_success())
             except Exception as e:
@@ -202,44 +189,44 @@ def apply_configs(
         broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
 
     # validate configs
+    config_change_list: list[ConfigChange] = []
     validation_errors: list[dict[str, Any]] = []
-    non_valid_configs: set[str] = set()
+    valid_broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
     current_configs = describe_broker_configs(admin_client)
     for broker_id in broker_ids:
-        for config_name in config_changes:
+        for config_name, new_value in config_changes.items():
             current_config = _get_config_from_list(
                 current_configs,
                 config_name,
                 broker_id,
             )
-
-            # validate config exists
-            if current_config is None:
-                validation_errors.append(
-                    ConfigChange(broker_id, config_name).to_error(
-                        f"Config '{config_name}' not found on broker {broker_id}"
-                    )
-                )
-                non_valid_configs.add(config_name)
+            # broker and config basic validation
+            validate = basic_validation(broker_id, valid_broker_ids, config_name, current_config)
+            if validate:
+                validation_errors.append(ConfigChange(broker_id, config_name).to_error(validate))
                 continue
             # validate config is not read-only when setting
+            assert current_config is not None
             if current_config["isReadOnly"]:
                 validation_errors.append(
                     ConfigChange(broker_id, config_name).to_error(
                         f"Config '{config_name}' is read-only on broker {broker_id}"
                     )
                 )
-                non_valid_configs.add(config_name)
                 continue
-    for config in non_valid_configs:
-        del config_changes[config]
+            config_change_list.append(
+                ConfigChange(
+                    broker_id=broker_id,
+                    config_name=config_name,
+                    old_value=current_config["value"],
+                    new_value=new_value,
+                )
+            )
 
     success, errors = _update_configs(
         admin_client=admin_client,
-        config_changes=config_changes,
+        config_changes=config_change_list,
         update_type=AlterConfigOpType.SET,
-        broker_ids=broker_ids,
-        current_configs=current_configs,
         configs_record_dir=configs_record_dir,
     )
 
@@ -272,8 +259,9 @@ def remove_dynamic_configs(
         broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
 
     # validate configs
+    config_change_list: list[ConfigChange] = []
+    valid_broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
     validation_errors: list[dict[str, Any]] = []
-    non_valid_configs: set[str] = set()
     current_configs = describe_broker_configs(admin_client)
     for broker_id in broker_ids:
         for config_name in configs_to_remove:
@@ -282,37 +270,49 @@ def remove_dynamic_configs(
                 config_name,
                 broker_id,
             )
-
-            # validate config exists
-            if current_config is None:
-                validation_errors.append(
-                    ConfigChange(broker_id, config_name).to_error(
-                        f"Config '{config_name}' not found on broker {broker_id}"
-                    )
-                )
-                non_valid_configs.add(config_name)
+            # broker and config basic validation
+            validate = basic_validation(broker_id, valid_broker_ids, config_name, current_config)
+            if validate:
+                validation_errors.append(ConfigChange(broker_id, config_name).to_error(validate))
                 continue
             # validate config is dynamic before removing
+            assert current_config is not None
             if current_config["source"] != ConfigSource.DYNAMIC_BROKER_CONFIG.name:
                 validation_errors.append(
                     ConfigChange(broker_id, config_name).to_error(
                         f"Config '{config_name}' is not set dynamically on broker {broker_id}"
                     )
                 )
-                non_valid_configs.add(config_name)
                 continue
-
-    # config values are ignored when deleting, so we set them to None
-    config_changes: Mapping[str, str | None] = {
-        key: None for key in configs_to_remove if key not in non_valid_configs
-    }
+            config_change_list.append(
+                ConfigChange(
+                    broker_id=broker_id,
+                    config_name=config_name,
+                    old_value=current_config["value"],
+                    new_value=None,
+                )
+            )
 
     success, error = _update_configs(
         admin_client=admin_client,
-        config_changes=config_changes,
+        config_changes=config_change_list,
         update_type=AlterConfigOpType.DELETE,
-        broker_ids=broker_ids,
-        current_configs=current_configs,
     )
 
     return success, error + validation_errors
+
+
+def basic_validation(
+    broker_id: str,
+    valid_broker_ids: Sequence[str],
+    config_name: str,
+    current_config: Mapping[str, Any] | None,
+) -> str | None:
+    """
+    Performs basic validation of a broker and config.
+    """
+    if broker_id not in valid_broker_ids:
+        return f"Broker {broker_id} not found in cluster"
+    if current_config is None:
+        return f"Config '{config_name}' not found on broker {broker_id}"
+    return None

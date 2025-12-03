@@ -38,7 +38,8 @@ def parse_broker_ids(
     if value is None:
         return None
     try:
-        return [id.strip() for id in value.split(",")]
+        broker_ids = [id.strip() for id in value.split(",") if id.strip()]
+        return broker_ids if broker_ids else None
     except ValueError as e:
         raise click.BadParameter(f"Invalid broker IDs: {e}")
 
