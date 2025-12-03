@@ -130,6 +130,7 @@ def test_apply_configs_success() -> None:
         patch(
             "sentry_kafka_management.actions.brokers.describe_broker_configs"
         ) as mock_describe_broker_configs,
+        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
     ):
         # _update_configs has to return something
         mock_update.return_value = ([], [])
@@ -145,6 +146,7 @@ def test_apply_configs_success() -> None:
             }
         ]
         mock_describe_broker_configs.return_value = current_configs
+        mock_describe_cluster.return_value = [{"id": "0"}]
         apply_configs(
             mock_client, config_changes={"message.max.bytes": "2000000"}, broker_ids=["0"]
         )
