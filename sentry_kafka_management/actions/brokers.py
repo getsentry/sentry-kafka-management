@@ -92,8 +92,11 @@ def record_config(config_name: str, config_value: str, record_dir: Path) -> None
         record_dir: Directory to record configs in.
     """
     assert record_dir.is_dir(), "record_dir must be a directory."
-    with open(record_dir / config_name, "w") as f:
-        f.write(config_value)
+    try:
+        with open(record_dir / config_name, "w") as f:
+            f.write(config_value)
+    except Exception as e:
+        print(f"Error recording config {config_name} to {record_dir}: {e}")
 
 
 def _get_config_from_list(
@@ -117,7 +120,7 @@ def _get_config_from_list(
 
 def _update_configs(
     admin_client: AdminClient,
-    config_changes: list[ConfigChange],
+    config_changes_dict: dict[str, list[ConfigChange]],
     update_type: AlterConfigOpType,
     configs_record_dir: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -128,40 +131,46 @@ def _update_configs(
     success: list[dict[str, Any]] = []
     error: list[dict[str, Any]] = []
 
-    change_list: list[tuple[ConfigChange, ConfigResource]] = []
+    config_resources: dict[str, ConfigResource] = {}
 
-    for config_change in config_changes:
-        broker_id = config_change.broker_id
-        config_entry = ConfigEntry(
-            name=config_change.config_name,
-            value=config_change.new_value,
-            incremental_operation=update_type,
-        )
-        config_resource = ConfigResource(
-            restype=ConfigResource.Type.BROKER,
-            name=broker_id,
-            incremental_configs=[config_entry],
-        )
-        change_list.append((config_change, config_resource))
+    for broker_id, config_changes in config_changes_dict.items():
+        for config_change in config_changes:
+            if broker_id not in config_resources:
+                config_resources[broker_id] = ConfigResource(
+                    restype=ConfigResource.Type.BROKER,
+                    name=broker_id,
+                )
+            config_entry = ConfigEntry(
+                name=config_change.config_name,
+                value=config_change.new_value,
+                incremental_operation=update_type,
+            )
+            config_resources[broker_id].incremental_configs.append(config_entry)
 
-    for config_change, config_resource in change_list:
-        # we make an AdminClient request for each config change to get better error messages
-        # since incremental_alter_configs returns None or throws a generic KafkaException
-        # for all config changes if we batch them together
-        futures = admin_client.incremental_alter_configs([config_resource])
-        for _, future in futures.items():
-            try:
-                future.result(timeout=KAFKA_TIMEOUT)
-                # record the applied value, if we applied a new value and it succeeded
+    futures = admin_client.incremental_alter_configs(list(config_resources.values()))
+    for config_resource, future in futures.items():
+        try:
+            future.result(timeout=KAFKA_TIMEOUT)
+            for config_change in config_changes_dict[config_resource.name]:
+                success.append(config_change.to_success())
                 if configs_record_dir and config_change.config_name and config_change.new_value:
                     record_config(
                         config_change.config_name,
                         config_change.new_value,
                         configs_record_dir,
                     )
-                success.append(config_change.to_success())
-            except Exception as e:
-                error.append(config_change.to_error(str(e)))
+        except Exception as e:
+            for config_change in config_changes_dict[config_resource.name]:
+                if config_change.config_name and config_change.config_name not in str(e):
+                    success.append(config_change.to_success())
+                    if configs_record_dir and config_change.config_name and config_change.new_value:
+                        record_config(
+                            config_change.config_name,
+                            config_change.new_value,
+                            configs_record_dir,
+                        )
+                else:
+                    error.append(config_change.to_error(str(e)))
     return success, error
 
 
@@ -189,7 +198,7 @@ def apply_configs(
         broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
 
     # validate configs
-    config_change_list: list[ConfigChange] = []
+    config_changes_dict: dict[str, list[ConfigChange]] = {}
     validation_errors: list[dict[str, Any]] = []
     valid_broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
     current_configs = describe_broker_configs(admin_client)
@@ -214,7 +223,9 @@ def apply_configs(
                     )
                 )
                 continue
-            config_change_list.append(
+            if broker_id not in config_changes_dict:
+                config_changes_dict[broker_id] = []
+            config_changes_dict[broker_id].append(
                 ConfigChange(
                     broker_id=broker_id,
                     config_name=config_name,
@@ -225,7 +236,7 @@ def apply_configs(
 
     success, errors = _update_configs(
         admin_client=admin_client,
-        config_changes=config_change_list,
+        config_changes_dict=config_changes_dict,
         update_type=AlterConfigOpType.SET,
         configs_record_dir=configs_record_dir,
     )
@@ -259,7 +270,7 @@ def remove_dynamic_configs(
         broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
 
     # validate configs
-    config_change_list: list[ConfigChange] = []
+    config_changes_dict: dict[str, list[ConfigChange]] = {}
     valid_broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
     validation_errors: list[dict[str, Any]] = []
     current_configs = describe_broker_configs(admin_client)
@@ -284,7 +295,9 @@ def remove_dynamic_configs(
                     )
                 )
                 continue
-            config_change_list.append(
+            if broker_id not in config_changes_dict:
+                config_changes_dict[broker_id] = []
+            config_changes_dict[broker_id].append(
                 ConfigChange(
                     broker_id=broker_id,
                     config_name=config_name,
@@ -295,7 +308,7 @@ def remove_dynamic_configs(
 
     success, error = _update_configs(
         admin_client=admin_client,
-        config_changes=config_change_list,
+        config_changes_dict=config_changes_dict,
         update_type=AlterConfigOpType.DELETE,
     )
 

@@ -92,19 +92,21 @@ def test_update_config_apply() -> None:
 
     mock_client.incremental_alter_configs.side_effect = mock_incremental_alter
 
-    config_changes = [
-        ConfigChange(
-            broker_id="0",
-            config_name="message.max.bytes",
-            old_value="1000000",
-            new_value="2000000",
-        )
-    ]
+    config_changes_dict = {
+        "0": [
+            ConfigChange(
+                broker_id="0",
+                config_name="message.max.bytes",
+                old_value="1000000",
+                new_value="2000000",
+            )
+        ]
+    }
     with TemporaryDirectory() as tmpdir:
         dir_path = Path(tmpdir)
         success, error = _update_configs(
             mock_client,
-            config_changes,
+            config_changes_dict,
             AlterConfigOpType.SET,
             configs_record_dir=dir_path,
         )
@@ -150,14 +152,16 @@ def test_apply_configs_success() -> None:
         )
         mock_update.assert_called_once_with(
             admin_client=mock_client,
-            config_changes=[
-                ConfigChange(
-                    broker_id="0",
-                    config_name="message.max.bytes",
-                    old_value="1000000",
-                    new_value="2000000",
-                )
-            ],
+            config_changes_dict={
+                "0": [
+                    ConfigChange(
+                        broker_id="0",
+                        config_name="message.max.bytes",
+                        old_value="1000000",
+                        new_value="2000000",
+                    )
+                ]
+            },
             update_type=AlterConfigOpType.SET,
             configs_record_dir=None,
         )
@@ -231,14 +235,16 @@ def test_remove_dynamic_configs_success() -> None:
         )
         mock_update.assert_called_once_with(
             admin_client=mock_client,
-            config_changes=[
-                ConfigChange(
-                    broker_id="0",
-                    config_name="message.max.bytes",
-                    old_value="1000000",
-                    new_value=None,
-                )
-            ],
+            config_changes_dict={
+                "0": [
+                    ConfigChange(
+                        broker_id="0",
+                        config_name="message.max.bytes",
+                        old_value="1000000",
+                        new_value=None,
+                    )
+                ]
+            },
             update_type=AlterConfigOpType.DELETE,
         )
 
