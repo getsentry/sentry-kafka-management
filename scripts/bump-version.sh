@@ -16,5 +16,5 @@ function replace() {
 replace "version = \"[0-9.]+\""  "version = \"$NEW_VERSION\"" pyproject.toml
 
 # Update uv.lock to reflect the new version
-echo "Updating uv.lock..."
-uv lock
+# echo "Updating uv.lock..."
+# uv lock
