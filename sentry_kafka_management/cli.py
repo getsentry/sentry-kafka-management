@@ -8,6 +8,7 @@ from sentry_kafka_management.scripts.brokers import (
     apply_configs,
     describe_broker_configs,
     remove_dynamic_configs,
+    remove_recorded_dynamic_configs,
 )
 from sentry_kafka_management.scripts.clusters import describe_cluster
 from sentry_kafka_management.scripts.topics import list_topics
@@ -18,6 +19,7 @@ COMMANDS = [
     describe_cluster,
     list_topics,
     remove_dynamic_configs,
+    remove_recorded_dynamic_configs,
 ]
 
 
