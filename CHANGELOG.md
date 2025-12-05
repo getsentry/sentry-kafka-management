@@ -1,3 +1,24 @@
+## 0.0.8
+
+### New Features ✨
+
+- feat: add script to delete configs from record dir by @bmckerry in [#31](https://github.com/getsentry/sentry-kafka-management/pull/31)
+- feat: add script to delete configs from record dir by @bmckerry in [#31](https://github.com/getsentry/sentry-kafka-management/pull/31)
+- feat(release): Add --version option to CLI by @lvthanh03 in [#30](https://github.com/getsentry/sentry-kafka-management/pull/30)
+- feat(brokers): add ability to record config changes by @bmckerry in [#27](https://github.com/getsentry/sentry-kafka-management/pull/27)
+- feat(brokers): add remove_dynamic_configs script by @bmckerry in [#26](https://github.com/getsentry/sentry-kafka-management/pull/26)
+- feat(brokers): add remove_dynamic_configs script by @bmckerry in [#26](https://github.com/getsentry/sentry-kafka-management/pull/26)
+
+### Build / dependencies / internal 🔧
+
+- ref(brokers): split apply_configs logic into separate function by @bmckerry in [#25](https://github.com/getsentry/sentry-kafka-management/pull/25)
+
+### Other
+
+- Fix release by @lvthanh03 in [#32](https://github.com/getsentry/sentry-kafka-management/pull/32)
+- feat(broker-configs): Split update configs to 1 request per change by @lvthanh03 in [#28](https://github.com/getsentry/sentry-kafka-management/pull/28)
+- meta: add codeowners to the repo by @bmckerry in [#24](https://github.com/getsentry/sentry-kafka-management/pull/24)
+
 ## 0.0.7
 
 - feat(config): Add apply-config function by @lvthanh03 in [#22](https://github.com/getsentry/sentry-kafka-management/pull/22)
