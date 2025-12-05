@@ -275,7 +275,7 @@ def remove_recorded_dynamic_configs(
 
     Usage:
         kafka-scripts remove-recorded-dynamic-configs -c config.yml -n my-cluster
-        --config-record-file /emergency-configs
+        --configs-record-dir /emergency-configs
         --broker-ids '0,1,2'
     """
     yaml_config = YamlKafkaConfig(config)

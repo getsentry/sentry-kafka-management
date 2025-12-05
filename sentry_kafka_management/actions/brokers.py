@@ -107,9 +107,10 @@ def read_record_dir(record_dir: Path) -> dict[str, str]:
     configs: dict[str, str] = {}
     records = record_dir.iterdir()
     for record_file in records:
-        assert (
-            record_file.is_file()
-        ), f"Expected all records in record_dir to be files, instead found {record_file.as_posix}."
+        assert record_file.is_file(), (
+            "Expected all records in record_dir to be files,",
+            f"instead found {record_file.as_posix()}.",
+        )
         try:
             with open(record_file, "r") as f:
                 configs[record_file.name] = f.read()

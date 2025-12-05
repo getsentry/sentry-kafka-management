@@ -233,8 +233,8 @@ def test_remove_recorded_config_command() -> None:
     with runner.isolated_filesystem():
         with open("test.yml", "w") as f:
             f.write("test: config")
-        path = Path.cwd() / "emergency-configs"
-        path.mkdir(exist_ok=True)
+        dir_path = Path.cwd() / "emergency-configs"
+        dir_path.mkdir(exist_ok=True)
 
         with (
             patch("sentry_kafka_management.scripts.brokers.YamlKafkaConfig") as mock_yaml_config,
@@ -269,7 +269,7 @@ def test_remove_recorded_config_command() -> None:
                     "-n",
                     "test-cluster",
                     "--configs-record-dir",
-                    "/tmp/emergency-configs",
+                    dir_path.as_posix(),
                     "--broker-ids",
                     "0",
                     "--cleanup-records",
