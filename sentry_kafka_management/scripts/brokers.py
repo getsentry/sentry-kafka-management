@@ -27,15 +27,24 @@ def parse_config_changes(
     ctx: click.Context, param: click.Parameter, value: str
 ) -> dict[str, str] | None:
     try:
-        return {key: value for key, value in [change.split("=") for change in value.split(",")]}
-    except ValueError as e:
-        raise click.BadParameter(f"Invalid config: {e}")
+        parsed = json.loads(value)
+        if not isinstance(parsed, dict):
+            raise click.BadParameter("Config changes must be a JSON object")
+        return {str(k): str(v) for k, v in parsed.items()}
+    except json.JSONDecodeError as e:
+        raise click.BadParameter(f"Invalid JSON: {e}")
 
 
 def parse_configs_to_remove(
     ctx: click.Context, param: click.Parameter, value: str
 ) -> list[str] | None:
-    return value.split(",")
+    try:
+        parsed = json.loads(value)
+        if not isinstance(parsed, list):
+            raise click.BadParameter("Configs to remove must be a JSON array")
+        return [str(item) for item in parsed]
+    except json.JSONDecodeError as e:
+        raise click.BadParameter(f"Invalid JSON: {e}")
 
 
 def parse_broker_ids(
@@ -93,7 +102,7 @@ def describe_broker_configs(config: Path, cluster: str) -> None:
     "--config-changes",
     required=True,
     callback=parse_config_changes,
-    help="Comma separated list of configuration changes to apply, in key=value format",
+    help='JSON object of configuration changes, e.g. \'{"key1": "value1", "key2": "value2"}\'',
 )
 @click.option(
     "--broker-ids",
@@ -130,7 +139,7 @@ def apply_configs(
 
     Usage:
         kafka-scripts apply-config -c config.yml -n my-cluster
-        --config-changes 'message.max.bytes=1048588,max.connections=1000'
+        --config-changes '{"message.max.bytes": "1048588", "max.connections": "1000"}'
         --broker-ids '0,1,2'
     """
     yaml_config = YamlKafkaConfig(config)
@@ -172,7 +181,7 @@ def apply_configs(
     "--configs-to-remove",
     required=True,
     callback=parse_configs_to_remove,
-    help="Comma separated list of config names to remove from dynamic configs.",
+    help='JSON array of dynamic configs to remove, e.g. \'["config1", "config2"]\'',
 )
 @click.option(
     "--broker-ids",
@@ -199,7 +208,7 @@ def remove_dynamic_configs(
 
     Usage:
         kafka-scripts remove-dynamic-configs -c config.yml -n my-cluster
-        --configs-to-remove 'message.max.bytes,max.connections'
+        --configs-to-remove '["message.max.bytes", "max.connections"]'
         --broker-ids '0,1,2'
     """
     yaml_config = YamlKafkaConfig(config)
