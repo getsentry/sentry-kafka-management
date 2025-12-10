@@ -16,11 +16,11 @@ repos:
       - id: trailing-whitespace
       - id: fix-encoding-pragma
         args: ["--remove"]
-  - repo: https://github.com/psf/black
+  - repo: https://github.com/psf/black-pre-commit-mirror
     rev: 24.10.0
     hooks:
       - id: black
-        files: ^sentry_kafka_management/.+
+        files: ^(sentry_kafka_management|tests)/.+
         args: [--config=./pyproject.toml]
   - repo: https://github.com/pycqa/flake8
     rev: 7.1.1
@@ -32,14 +32,14 @@ repos:
     hooks:
       - id: isort
         name: isort (python)
-        files: ^sentry_kafka_management/.+
+        files: ^(sentry_kafka_management|tests)/.+
         args: [--settings-path=./pyproject.toml]
   - repo: local
     hooks:
       - id: mypy
         name: mypy
         entry: mypy
-        files: ^sentry_kafka_management/.*\.py$
+        files: ^(sentry_kafka_management|tests)/.*\.py$
         types: [python]
         language: system
 
