@@ -1,6 +1,6 @@
+import json
 from pathlib import Path
 from unittest.mock import patch
-import json
 
 import click.testing
 
@@ -16,11 +16,9 @@ def test_cli_topics_list(temp_config: Path) -> None:
         mock_action.return_value = mock_topics
 
         runner = click.testing.CliRunner()
-        result = runner.invoke(cli, [
-            "list-topics",
-            "--config", str(temp_config),
-            "--cluster", "cluster1"
-        ])
+        result = runner.invoke(
+            cli, ["list-topics", "--config", str(temp_config), "--cluster", "cluster1"]
+        )
 
         assert result.exit_code == 0
         mock_action.assert_called_once()
@@ -46,11 +44,9 @@ def test_cli_brokers_describe_configs(temp_config: Path) -> None:
         mock_action.return_value = mock_configs
 
         runner = click.testing.CliRunner()
-        result = runner.invoke(cli, [
-            "describe-broker-configs",
-            "--config", str(temp_config),
-            "--cluster", "cluster1"
-        ])
+        result = runner.invoke(
+            cli, ["describe-broker-configs", "--config", str(temp_config), "--cluster", "cluster1"]
+        )
 
         assert result.exit_code == 0
         mock_action.assert_called_once()
