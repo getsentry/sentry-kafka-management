@@ -1,5 +1,6 @@
-from sentry_kafka_management.brokers import YamlKafkaConfig
 from pathlib import Path
+
+from sentry_kafka_management.brokers import YamlKafkaConfig
 
 
 def test_load_clusters_only(temp_config: Path) -> None:

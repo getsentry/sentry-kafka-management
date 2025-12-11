@@ -18,10 +18,7 @@ def test_list_topics(temp_config: Path) -> None:
         mock_action.return_value = mock_topics
 
         runner = CliRunner()
-        result = runner.invoke(list_topics, [
-            "--config", str(temp_config),
-            "--cluster", "cluster1"
-        ])
+        result = runner.invoke(list_topics, ["--config", str(temp_config), "--cluster", "cluster1"])
 
         assert result.exit_code == 0
         mock_action.assert_called_once()
