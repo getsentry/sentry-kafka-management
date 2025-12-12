@@ -1,6 +1,11 @@
 from unittest.mock import Mock
-from confluent_kafka.admin import ConfigResource, ConfigSource  # type: ignore[import-untyped]
-from sentry_kafka_management.actions.topics import list_topics, describe_topic_configs
+
+from confluent_kafka.admin import (  # type: ignore[import-untyped]
+    ConfigResource,
+    ConfigSource,
+)
+
+from sentry_kafka_management.actions.topics import describe_topic_configs, list_topics
 
 
 def test_list_topics() -> None:

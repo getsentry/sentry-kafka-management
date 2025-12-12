@@ -1,8 +1,9 @@
 import tempfile
-import yaml
 from pathlib import Path
 from typing import Generator
+
 import pytest
+import yaml
 
 
 @pytest.fixture
@@ -22,16 +23,16 @@ def temp_config() -> Generator[Path, None, None]:
                     "partitions": 3,
                     "placement": {"rack": "rack1"},
                     "replication_factor": 2,
-                    "settings": {"retention.ms": "86400000"}
+                    "settings": {"retention.ms": "86400000"},
                 },
                 {
                     "name": "topic2",
                     "partitions": 5,
                     "placement": {"rack": "rack2"},
                     "replication_factor": 3,
-                    "settings": {"cleanup.policy": "delete"}
-                }
-            ]
+                    "settings": {"cleanup.policy": "delete"},
+                },
+            ],
         },
         {
             "name": "cluster2",
@@ -46,13 +47,13 @@ def temp_config() -> Generator[Path, None, None]:
                     "partitions": 2,
                     "placement": {"zone": "zone1"},
                     "replication_factor": 2,
-                    "settings": {"compression.type": "snappy"}
+                    "settings": {"compression.type": "snappy"},
                 }
-            ]
-        }
+            ],
+        },
     ]
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         yaml.dump(config, f)
         temp_path = Path(f.name)
 
