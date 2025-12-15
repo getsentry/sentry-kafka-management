@@ -327,10 +327,11 @@ def remove_recorded_dynamic_configs(
         dry_run,
     )
 
-    # optionally delete all record files for configs that were deleted
-    if cleanup_records:
-        for deleted_config in success:
-            cleanup_config_record(configs_record_dir, deleted_config["config_name"])
+    if not dry_run:
+        # optionally delete all record files for configs that were deleted
+        if cleanup_records:
+            for deleted_config in success:
+                cleanup_config_record(configs_record_dir, deleted_config["config_name"])
 
     if success:
         click.echo("Success:")
