@@ -209,6 +209,7 @@ def apply_configs(
     config_changes: MutableMapping[str, str],
     broker_ids: Sequence[str] | None = None,
     configs_record_dir: Path | None = None,
+    dry_run: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Apply a configuration change to a broker.
@@ -218,6 +219,8 @@ def apply_configs(
         config_changes: Dictionary of config changes to apply
         broker_ids: List of broker IDs to apply config to, if not provided, config will \
             be applied to all brokers in the cluster.
+        configs_record_dir: Directory to record config changes in.
+        dry_run: Whether to dry run the config changes, only performs validation
 
     Returns:
         List of dictionaries with operation details for each config change.
@@ -262,6 +265,9 @@ def apply_configs(
                 )
             )
 
+    if dry_run:
+        return [c.to_success() for c in config_change_list], validation_errors
+
     success, errors = _update_configs(
         admin_client=admin_client,
         config_changes=config_change_list,
@@ -276,6 +282,7 @@ def remove_dynamic_configs(
     admin_client: AdminClient,
     configs_to_remove: Sequence[str],
     broker_ids: Sequence[str] | None = None,
+    dry_run: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Removes any dynamically set values from the given configs
@@ -287,6 +294,7 @@ def remove_dynamic_configs(
         admin_client: AdminClient instance
         configs_to_remove: List of config changes to remove dynamic configs from
         broker_ids: List of broker IDs to remove the given dynamic configs from
+        dry_run: Whether to dry run the config removals, only performs validation
 
     Returns:
         List of dictionaries with details on each config change.
@@ -331,6 +339,9 @@ def remove_dynamic_configs(
                     new_value=None,
                 )
             )
+
+    if dry_run:
+        return [c.to_success() for c in config_change_list], validation_errors
 
     success, error = _update_configs(
         admin_client=admin_client,
