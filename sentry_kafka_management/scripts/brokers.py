@@ -124,12 +124,18 @@ def describe_broker_configs(config: Path, cluster: str) -> None:
         "Will not record invalid configs."
     ),
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Whether to dry run the config changes, only performs validation",
+)
 def apply_configs(
     config: Path,
     cluster: str,
     config_changes: dict[str, str],
     broker_ids: list[str] | None = None,
     configs_record_dir: Path | None = None,
+    dry_run: bool = False,
 ) -> None:
     """
     Apply a configuration change to a broker.
@@ -151,6 +157,7 @@ def apply_configs(
         config_changes,
         broker_ids,
         configs_record_dir,
+        dry_run,
     )
 
     if success:
@@ -160,7 +167,10 @@ def apply_configs(
         click.echo("Error:")
         click.echo(json.dumps(error, indent=2))
         raise click.ClickException("One or more config changes failed")
-    click.echo("All config changes applied successfully")
+    if dry_run:
+        click.echo("Dry run completed successfully")
+    else:
+        click.echo("All config changes applied successfully")
 
 
 @click.command()
@@ -192,11 +202,17 @@ def apply_configs(
         "if not provided, config will be removed from all brokers in the cluster"
     ),
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Whether to dry run the config removals, only performs validation",
+)
 def remove_dynamic_configs(
     config: Path,
     cluster: str,
     configs_to_remove: Sequence[str],
     broker_ids: list[str] | None = None,
+    dry_run: bool = False,
 ) -> None:
     """
     Removes dynamic configs from a broker.
@@ -219,6 +235,7 @@ def remove_dynamic_configs(
         client,
         configs_to_remove,
         broker_ids,
+        dry_run,
     )
 
     if success:
@@ -228,7 +245,10 @@ def remove_dynamic_configs(
         click.echo("Error:")
         click.echo(json.dumps(error, indent=2))
         raise click.ClickException("One or more config removals failed")
-    click.echo("All dynamic configs removed successfully")
+    if dry_run:
+        click.echo("Dry run completed successfully")
+    else:
+        click.echo("All dynamic configs removed successfully")
 
 
 @click.command()
@@ -266,12 +286,18 @@ def remove_dynamic_configs(
         "if not provided, recorded configs will be removed from all brokers in the cluster."
     ),
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Whether to dry run the config removals, only performs validation",
+)
 def remove_recorded_dynamic_configs(
     config: Path,
     cluster: str,
     configs_record_dir: Path,
     cleanup_records: bool,
     broker_ids: list[str] | None = None,
+    dry_run: bool = False,
 ) -> None:
     """
     Removes dynamic configs from a broker by reading from config record files at
@@ -298,6 +324,7 @@ def remove_recorded_dynamic_configs(
         client,
         list(configs_to_remove.keys()),
         broker_ids,
+        dry_run,
     )
 
     # optionally delete all record files for configs that were deleted
@@ -312,4 +339,7 @@ def remove_recorded_dynamic_configs(
         click.echo("Error:")
         click.echo(json.dumps(error, indent=2))
         raise click.ClickException("One or more config removals failed")
-    click.echo("All dynamic configs removed successfully")
+    if dry_run:
+        click.echo("Dry run completed successfully")
+    else:
+        click.echo("All dynamic configs removed successfully")
