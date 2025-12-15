@@ -16,8 +16,8 @@ jobs:
     strategy:
       max-parallel: 5
       matrix:
-        # 3.9: Debian 11, 3.11: Ops repo, 3.13: Sentry prod
-        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        # 3.9: Debian 11, 3.11: Ops repo, 3.12: Docker image, 3.13: Sentry prod
+        python: ["3.9", "3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v3
