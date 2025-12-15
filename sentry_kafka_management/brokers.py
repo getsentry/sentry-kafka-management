@@ -8,6 +8,19 @@ import yaml
 class ClusterConfig(TypedDict):
     """
     Represents the configuration of a Kafka cluster.
+
+    Fields:
+        brokers: Broker connection strings
+        security_protocol: Security protocol to use when connecting to the cluster
+        sasl_mechanism: If using SASL security, which SASL mechanism to use
+        sasl_username: If using SASL security, username of the kafka user
+        sasl_password: If using SASL security, either the name of an env var containing
+                       the password (default)or the password itself in plaintext
+                       (if `password_is_plaintext=True`).
+        password_is_plaintext: If True, `sasl_password` is interpreted as being the
+                               plaintext password.
+                               If False, `sasl_password` is interpreted as an environment var
+                               containing the password. Defaults to False.
     """
 
     brokers: Sequence[str]
@@ -15,6 +28,7 @@ class ClusterConfig(TypedDict):
     sasl_mechanism: str | None
     sasl_username: str | None
     sasl_password: str | None
+    password_is_plaintext: bool
 
 
 class TopicConfig(TypedDict):
@@ -71,6 +85,7 @@ class YamlKafkaConfig(KafkaConfig):
                 sasl_mechanism=cluster.get("sasl_mechanism"),
                 sasl_username=cluster.get("sasl_username"),
                 sasl_password=cluster.get("sasl_password"),
+                password_is_plaintext=cluster.get("password_is_plaintext", False),
             )
             for cluster in conf
         }
