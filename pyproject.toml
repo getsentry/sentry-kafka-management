@@ -7,7 +7,7 @@ name = "sentry_kafka_management"
 version = "0.0.8"
 description = "Libraries used by Sentry for kafka management"
 readme = "README.md"
-requires-python = ">= 3.11"
+requires-python = ">= 3.9"
 dependencies = [
   "confluent-kafka>=2.8.0",
   "PyYAML",
@@ -20,14 +20,15 @@ kafka-scripts = "sentry_kafka_management.cli:main"
 [dependency-groups]
 dev = [
   "pytest>=8.1.2",
-  "sentry_devenv>=1.22.2",
   "mypy>=1.17.1",
-  "devservices>=1.2.1",
   "pre-commit>=4.1.0",
   "types-PyYAML",
   "black>=24.10.0",
   "isort>=5.13.0",
-  "flake8>=7.1.1"
+  "flake8>=7.1.1",
+  # only install some dev deps if we're running Python >= 3.11 (meaning we're not in CI)
+  "devservices>=1.2.1; python_version>='3.11'",
+  "sentry_devenv>=1.22.2; python_version>='3.11'",
 ]
 
 [tool.uv]
