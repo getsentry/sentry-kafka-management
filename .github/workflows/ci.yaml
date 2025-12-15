@@ -29,11 +29,11 @@ jobs:
       # don't support it
       - name: Make environment 3.9
         run: make install-ci-3.9
-        if: ${{ matrix.python == "3.9" }}
+        if: ${{ matrix.python == '3.9' }}
 
       - name: Make environment
         run: make install-ci
-        if: ${{ matrix.python != "3.9" }}
+        if: ${{ matrix.python != '3.9' }}
 
       - name: Run tests
         run: |
