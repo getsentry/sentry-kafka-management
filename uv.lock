@@ -1,8 +1,10 @@
 version = 1
 revision = 2
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 resolution-markers = [
-    "sys_platform == 'darwin' or sys_platform == 'linux'",
+    "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')",
+    "(python_full_version == '3.10.*' and sys_platform == 'darwin') or (python_full_version == '3.10.*' and sys_platform == 'linux')",
+    "(python_full_version < '3.10' and sys_platform == 'darwin') or (python_full_version < '3.10' and sys_platform == 'linux')",
 ]
 supported-markers = [
     "sys_platform == 'darwin' or sys_platform == 'linux'",
@@ -13,11 +15,14 @@ name = "black"
 version = "25.1.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
-    { name = "click", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "click", version = "8.1.8", source = { registry = "https://pypi.devinfra.sentry.io/simple" }, marker = "(python_full_version < '3.10' and sys_platform == 'darwin') or (python_full_version < '3.10' and sys_platform == 'linux')" },
+    { name = "click", version = "8.2.1", source = { registry = "https://pypi.devinfra.sentry.io/simple" }, marker = "(python_full_version >= '3.10' and sys_platform == 'darwin') or (python_full_version >= '3.10' and sys_platform == 'linux')" },
     { name = "mypy-extensions", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pathspec", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "platformdirs", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "tomli", marker = "(python_full_version < '3.11' and sys_platform == 'darwin') or (python_full_version < '3.11' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(python_full_version < '3.11' and sys_platform == 'darwin') or (python_full_version < '3.11' and sys_platform == 'linux')" },
 ]
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/black-25.1.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:a39337598244de4bae26475f77dda852ea00a93bd4c728e09eacd827ec929df0" },
@@ -50,8 +55,23 @@ wheels = [
 
 [[package]]
 name = "click"
+version = "8.1.8"
+source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+resolution-markers = [
+    "(python_full_version < '3.10' and sys_platform == 'darwin') or (python_full_version < '3.10' and sys_platform == 'linux')",
+]
+wheels = [
+    { url = "https://pypi.devinfra.sentry.io/wheels/click-8.1.8-py3-none-any.whl", hash = "sha256:63c132bbbed01578a06712a2d1f497bb62d9c1c0d329b7903a866228027263b2" },
+]
+
+[[package]]
+name = "click"
 version = "8.2.1"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+resolution-markers = [
+    "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')",
+    "(python_full_version == '3.10.*' and sys_platform == 'darwin') or (python_full_version == '3.10.*' and sys_platform == 'linux')",
+]
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/click-8.2.1-py3-none-any.whl", hash = "sha256:61a3265b914e850b85317d0b3109c7f8cd35a670f963866005d6ef1d5175a12b" },
 ]
@@ -80,11 +100,11 @@ name = "devservices"
 version = "1.2.1"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
-    { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "pyyaml", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "sentry-devenv", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "sentry-sdk", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "supervisor", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "packaging", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+    { name = "pyyaml", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+    { name = "sentry-devenv", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+    { name = "sentry-sdk", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+    { name = "supervisor", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
 ]
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/devservices-1.2.1-py3-none-any.whl", hash = "sha256:7c76ab711550cd1f42bd99b12edfcbdb1792fb7df0b7fec51eb13a2e2ff5df1b" },
@@ -96,6 +116,14 @@ version = "0.3.9"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/distlib-0.3.9-py2.py3-none-any.whl", hash = "sha256:47f8c22fd27c27e25a65601af709b38e4f0a45ea4fc2e710f65755fa8caaaf87" },
+]
+
+[[package]]
+name = "exceptiongroup"
+version = "1.2.2"
+source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+wheels = [
+    { url = "https://pypi.devinfra.sentry.io/wheels/exceptiongroup-1.2.2-py3-none-any.whl", hash = "sha256:3111b9d131c238bec2f8f516e123e14ba243563fb135d3fe885990585aa7795b" },
 ]
 
 [[package]]
@@ -158,6 +186,7 @@ source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
     { name = "mypy-extensions", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pathspec", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "tomli", marker = "(python_full_version < '3.11' and sys_platform == 'darwin') or (python_full_version < '3.11' and sys_platform == 'linux')" },
     { name = "typing-extensions", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 wheels = [
@@ -259,9 +288,11 @@ name = "pytest"
 version = "8.3.3"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
+    { name = "exceptiongroup", marker = "(python_full_version < '3.11' and sys_platform == 'darwin') or (python_full_version < '3.11' and sys_platform == 'linux')" },
     { name = "iniconfig", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pluggy", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "tomli", marker = "(python_full_version < '3.11' and sys_platform == 'darwin') or (python_full_version < '3.11' and sys_platform == 'linux')" },
 ]
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/pytest-8.3.3-py3-none-any.whl", hash = "sha256:a6853c7375b2663155079443d2e45de913a911a11d669df02a50814944db57b2" },
@@ -272,6 +303,10 @@ name = "pyyaml"
 version = "6.0.2"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 wheels = [
+    { url = "https://pypi.devinfra.sentry.io/wheels/PyYAML-6.0.2-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:0a9a2848a5b7feac301353437eb7d5957887edbf81d56e903999a75a3d743086" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/PyYAML-6.0.2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:29717114e51c84ddfba879543fb232a6ed60086602313ca38cce623c1d62cfbf" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/PyYAML-6.0.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8824b5a04a04a047e72eea5cec3bc266db09e35de6bdfe34c9436ac5ee27d237" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/PyYAML-6.0.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ec031d5d2feb36d1d1a24380e4db6d43695f3748343d99434e6f5f9156aaa2ed" },
     { url = "https://pypi.devinfra.sentry.io/wheels/PyYAML-6.0.2-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:cc1c1159b3d456576af7a3e4d1ba7e6924cb39de8f67111c735f6fc832082774" },
     { url = "https://pypi.devinfra.sentry.io/wheels/PyYAML-6.0.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:1e2120ef853f59c7419231f3bf4e7021f1b936f6ebd222406c3b60212205d2ee" },
     { url = "https://pypi.devinfra.sentry.io/wheels/PyYAML-6.0.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:5d225db5a45f21e78dd9358e58a98702a0302f2659a3c6cd320564b75b86f47c" },
@@ -291,8 +326,8 @@ name = "sentry-devenv"
 version = "1.22.2"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
-    { name = "sentry-sdk", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "typing-extensions", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "sentry-sdk", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
 ]
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/sentry_devenv-1.22.2-py3-none-any.whl", hash = "sha256:0ecd7c5793ee44a6fe401991589fae2a53e7d4dd0506d031994a00fe82e22390" },
@@ -300,24 +335,28 @@ wheels = [
 
 [[package]]
 name = "sentry-kafka-management"
-version = "0.0.4"
+version = "0.0.8"
 source = { editable = "." }
 dependencies = [
-    { name = "click", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "click", version = "8.1.8", source = { registry = "https://pypi.devinfra.sentry.io/simple" }, marker = "(python_full_version < '3.10' and sys_platform == 'darwin') or (python_full_version < '3.10' and sys_platform == 'linux')" },
+    { name = "click", version = "8.2.1", source = { registry = "https://pypi.devinfra.sentry.io/simple" }, marker = "(python_full_version >= '3.10' and sys_platform == 'darwin') or (python_full_version >= '3.10' and sys_platform == 'linux')" },
     { name = "confluent-kafka", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pyyaml", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 
 [package.dev-dependencies]
+ci-3-9 = [
+    { name = "pytest", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
 dev = [
     { name = "black", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "devservices", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "devservices", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
     { name = "flake8", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "isort", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "mypy", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pre-commit", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "sentry-devenv", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "sentry-devenv", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
     { name = "types-pyyaml", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 
@@ -329,15 +368,16 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+ci-3-9 = [{ name = "pytest", specifier = ">=8.1.2" }]
 dev = [
     { name = "black", specifier = ">=24.10.0" },
-    { name = "devservices", specifier = ">=1.2.1" },
+    { name = "devservices", marker = "python_full_version >= '3.11'", specifier = ">=1.2.1" },
     { name = "flake8", specifier = ">=7.1.1" },
     { name = "isort", specifier = ">=5.13.0" },
     { name = "mypy", specifier = ">=1.17.1" },
     { name = "pre-commit", specifier = ">=4.1.0" },
     { name = "pytest", specifier = ">=8.1.2" },
-    { name = "sentry-devenv", specifier = ">=1.22.2" },
+    { name = "sentry-devenv", marker = "python_full_version >= '3.11'", specifier = ">=1.22.2" },
     { name = "types-pyyaml" },
 ]
 
@@ -346,8 +386,8 @@ name = "sentry-sdk"
 version = "2.35.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
-    { name = "certifi", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "urllib3", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "certifi", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+    { name = "urllib3", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
 ]
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/sentry_sdk-2.35.0-py2.py3-none-any.whl", hash = "sha256:6e0c29b9a5d34de8575ffb04d289a987ff3053cf2c98ede445bea995e3830263" },
@@ -366,10 +406,29 @@ name = "supervisor"
 version = "4.2.5"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
-    { name = "setuptools", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "setuptools", marker = "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
 ]
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/supervisor-4.2.5-py2.py3-none-any.whl", hash = "sha256:2ecaede32fc25af814696374b79e42644ecaba5c09494c51016ffda9602d0f08" },
+]
+
+[[package]]
+name = "tomli"
+version = "2.2.1"
+source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+wheels = [
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:678e4fa69e4575eb77d103de3df8a895e1591b48e740211bd1067378c69e8249" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:023aa114dd824ade0100497eb2318602af309e5a55595f76b626d6d9f3b7b0a6" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ece47d672db52ac607a3d9599a9d48dcb2f2f735c6c2d1f34130085bb12b112a" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6972ca9c9cc9f0acaa56a8ca1ff51e7af152a9f87fb64623e31d5c83700080ee" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:4a8f6e44de52d5e6c657c9fe83b562f5f4256d8ebbfe4ff922c495620a7f6cea" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:8d57ca8095a641b8237d5b079147646153d22552f1c637fd3ba7f4b0b29167a8" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4e340144ad7ae1533cb897d406382b4b6fede8890a03738ff1683af800d54192" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:db2b95f9de79181805df90bedc5a5ab4c165e6ec3fe99f970d0e302f384ad222" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:f4039b9cbc3048b2416cc57ab3bda989a6fcf9b36cf8937f01a6e731b64f80d7" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:286f0ca2ffeeb5b9bd4fcc8d6c330534323ec51b2f52da063b11c502da16f30c" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a92ef1a44547e894e2a17d24e7557a5e85a9e1d0048b0b5e7541f76c5032cb13" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/tomli-2.2.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9316dc65bed1684c9a98ee68759ceaed29d229e985297003e494aa825ebb0281" },
 ]
 
 [[package]]
