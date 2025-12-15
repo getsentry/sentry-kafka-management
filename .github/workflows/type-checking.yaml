@@ -10,6 +10,11 @@ jobs:
   typing:
     name: "mypy typing"
     runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 5
+      matrix:
+        # 3.9: Debian 11, 3.11: Ops repo, 3.13: Sentry prod
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v3
