@@ -11,6 +11,12 @@ install-dev:
 	uv sync --group dev
 	$(MAKE) install-pre-commit-hook
 
+# Special casing Python 3.9 since a bunch of internal pypi package
+# don't support it
+install-ci-3.9:
+	which uv || (curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh)
+	uv sync --group ci_3_9 --python-preference only-system
+
 install-ci:
 	which uv || (curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh)
 	uv sync --group dev --python-preference only-system

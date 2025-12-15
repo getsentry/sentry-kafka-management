@@ -26,9 +26,17 @@ dev = [
   "black>=24.10.0",
   "isort>=5.13.0",
   "flake8>=7.1.1",
-  # only install some dev deps if we're running Python >= 3.11 (meaning we're not in CI)
   "devservices>=1.2.1; python_version>='3.11'",
   "sentry_devenv>=1.22.2; python_version>='3.11'",
+]
+
+ci_3_9 = [
+  "pytest>=8.1.2",
+  "pre-commit>=4.1.0",
+  "types-PyYAML",
+  "black>=24.10.0",
+  "isort>=5.13.0",
+  "flake8>=7.1.1",
 ]
 
 [tool.uv]
