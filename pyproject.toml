@@ -31,17 +31,6 @@ dev = [
   "sentry_devenv>=1.22.2; python_version>='3.11'",
 ]
 
-# only install 3.9 compatible deps in CI
-ci = [
-  "pytest>=8.1.2",
-  "mypy>=1.17.1",
-  "pre-commit>=4.1.0",
-  "types-PyYAML",
-  "black>=24.10.0",
-  "isort>=5.13.0",
-  "flake8>=7.1.1",
-]
-
 [tool.uv]
 environments = ["sys_platform == 'darwin' or sys_platform == 'linux'"]
 

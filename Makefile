@@ -13,7 +13,7 @@ install-dev:
 
 install-ci:
 	which uv || (curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh)
-	uv sync --group ci
+	uv sync --group dev --python-preference only-system
 
 tests:
 	pytest -vv tests
