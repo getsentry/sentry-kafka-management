@@ -11,15 +11,17 @@ install-dev:
 	uv sync --group dev
 	$(MAKE) install-pre-commit-hook
 
-# Special casing Python 3.9 since a bunch of internal pypi packages
-# don't support it
+# Internal pypy doesn't support versions lower than 3.11, so we install the minimum
+# to make tests work from external pypi
 install-ci-3.9:
 	which uv || (curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh)
-	uv sync --only-group ci_3_9 --python-preference only-system --no-cache
+	uv export -o requirements.txt --group ci_3_9 --python-preference only-system --default-index 'https://pypi.org/simple' --no-cache
+	uv venv --default-index 'https://pypi.org/simple'
+	uv pip install -r requirements.txt --default-index 'https://pypi.org/simple' --no-cache
 
 install-ci:
 	which uv || (curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh)
-	uv sync --group dev --python-preference only-system --no-cache
+	uv sync --only-group dev --python-preference only-system --no-cache
 
 tests:
 	pytest -vv tests

@@ -15,8 +15,7 @@ name = "black"
 version = "25.1.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
-    { name = "click", version = "8.1.8", source = { registry = "https://pypi.devinfra.sentry.io/simple" }, marker = "(python_full_version < '3.10' and sys_platform == 'darwin') or (python_full_version < '3.10' and sys_platform == 'linux')" },
-    { name = "click", version = "8.2.1", source = { registry = "https://pypi.devinfra.sentry.io/simple" }, marker = "(python_full_version >= '3.10' and sys_platform == 'darwin') or (python_full_version >= '3.10' and sys_platform == 'linux')" },
+    { name = "click", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "mypy-extensions", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pathspec", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -57,23 +56,8 @@ wheels = [
 name = "click"
 version = "8.1.8"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
-resolution-markers = [
-    "(python_full_version < '3.10' and sys_platform == 'darwin') or (python_full_version < '3.10' and sys_platform == 'linux')",
-]
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/click-8.1.8-py3-none-any.whl", hash = "sha256:63c132bbbed01578a06712a2d1f497bb62d9c1c0d329b7903a866228027263b2" },
-]
-
-[[package]]
-name = "click"
-version = "8.2.1"
-source = { registry = "https://pypi.devinfra.sentry.io/simple" }
-resolution-markers = [
-    "(python_full_version >= '3.11' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux')",
-    "(python_full_version == '3.10.*' and sys_platform == 'darwin') or (python_full_version == '3.10.*' and sys_platform == 'linux')",
-]
-wheels = [
-    { url = "https://pypi.devinfra.sentry.io/wheels/click-8.2.1-py3-none-any.whl", hash = "sha256:61a3265b914e850b85317d0b3109c7f8cd35a670f963866005d6ef1d5175a12b" },
 ]
 
 [[package]]
@@ -338,15 +322,17 @@ name = "sentry-kafka-management"
 version = "0.0.8"
 source = { editable = "." }
 dependencies = [
-    { name = "click", version = "8.1.8", source = { registry = "https://pypi.devinfra.sentry.io/simple" }, marker = "(python_full_version < '3.10' and sys_platform == 'darwin') or (python_full_version < '3.10' and sys_platform == 'linux')" },
-    { name = "click", version = "8.2.1", source = { registry = "https://pypi.devinfra.sentry.io/simple" }, marker = "(python_full_version >= '3.10' and sys_platform == 'darwin') or (python_full_version >= '3.10' and sys_platform == 'linux')" },
+    { name = "click", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "confluent-kafka", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pyyaml", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 
 [package.dev-dependencies]
 ci-3-9 = [
+    { name = "click", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "confluent-kafka", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "pyyaml", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 dev = [
     { name = "black", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -368,7 +354,12 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-ci-3-9 = [{ name = "pytest", specifier = ">=8.1.2" }]
+ci-3-9 = [
+    { name = "click", specifier = "==8.1.8" },
+    { name = "confluent-kafka", specifier = "==2.8.0" },
+    { name = "pytest", specifier = "==8.3.3" },
+    { name = "pyyaml", specifier = "==6.0.2" },
+]
 dev = [
     { name = "black", specifier = ">=24.10.0" },
     { name = "devservices", marker = "python_full_version >= '3.11'", specifier = ">=1.2.1" },

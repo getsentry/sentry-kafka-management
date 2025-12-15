@@ -30,8 +30,12 @@ dev = [
   "sentry_devenv>=1.22.2; python_version>='3.11'",
 ]
 
+# Pinned deps since these are installed from external pypi
 ci_3_9 = [
-  "pytest>=8.1.2",
+  "pytest==8.3.3",
+  "confluent-kafka==2.8.0",
+  "PyYAML==6.0.2",
+  "click==8.1.8",
 ]
 
 [tool.uv]
