@@ -26,7 +26,6 @@ repos:
     rev: 7.1.1
     hooks:
       - id: flake8
-        language_version: python3.12
   - repo: https://github.com/pycqa/isort
     rev: 6.0.0
     hooks:
@@ -44,4 +43,4 @@ repos:
         language: system
 
 default_language_version:
-  python: "3.12.6"
+  python: python3.12
