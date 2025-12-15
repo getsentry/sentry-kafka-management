@@ -309,3 +309,44 @@ def test_remove_dynamic_configs_validation() -> None:
         assert len(error) == 1
         assert error[0]["status"] == "error"
         mock_client.incremental_alter_configs.assert_not_called()
+
+
+@patch("sentry_kafka_management.actions.brokers._update_configs")
+@patch("sentry_kafka_management.actions.brokers.describe_broker_configs")
+@patch("sentry_kafka_management.actions.brokers.describe_cluster")
+def test_apply_configs_dry_run(
+    mock_describe_cluster: Mock, mock_describe_broker_configs: Mock, mock_update_configs: Mock
+) -> None:
+    """Test that dry run doesn't actually apply configs."""
+    mock_client = Mock()
+
+    mock_describe_cluster.return_value = [{"id": "0"}]
+    mock_describe_broker_configs.return_value = [
+        {
+            "config": "message.max.bytes",
+            "value": "1000000",
+            "source": "STATIC_BROKER_CONFIG",
+            "isDefault": False,
+            "isReadOnly": False,
+            "broker": "0",
+        }
+    ]
+
+    success, error = apply_configs(
+        mock_client,
+        config_changes={"message.max.bytes": "2000000"},
+        broker_ids=["0"],
+        dry_run=True,
+    )
+
+    # Verify _update_configs was not called during dry run
+    mock_update_configs.assert_not_called()
+
+    assert len(success) == 1
+    assert len(error) == 0
+    assert isinstance(success[0], dict)
+    assert success[0]["broker_id"] == "0"
+    assert success[0]["config_name"] == "message.max.bytes"
+    assert success[0]["old_value"] == "1000000"
+    assert success[0]["new_value"] == "2000000"
+    assert success[0]["status"] == "success"
