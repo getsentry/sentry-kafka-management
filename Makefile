@@ -15,11 +15,11 @@ install-dev:
 # don't support it
 install-ci-3.9:
 	which uv || (curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh)
-	uv sync --group ci_3_9 --python-preference only-system
+	uv sync --group ci_3_9 --python-preference only-system --no-cache
 
 install-ci:
 	which uv || (curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh)
-	uv sync --group dev --python-preference only-system
+	uv sync --group dev --python-preference only-system --no-cache
 
 tests:
 	pytest -vv tests
