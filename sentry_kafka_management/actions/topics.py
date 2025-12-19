@@ -1,9 +1,14 @@
 from typing import Any, Mapping, Sequence
 
+from confluent_kafka import (  # type: ignore[import-untyped]
+    TopicCollection,
+    TopicPartition,
+)
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
     AdminClient,
     ConfigResource,
     ConfigSource,
+    OffsetSpec,
 )
 
 from sentry_kafka_management.actions.conf import KAFKA_TIMEOUT
@@ -52,3 +57,29 @@ def describe_topic_configs(
             all_configs.append(config_item)
 
     return all_configs
+
+
+def list_offsets(admin_client: AdminClient, topic: str) -> list[dict[str, Any]]:
+    """
+    Returns the earliest and latest stored offsets for every partition of a topic.
+    """
+    topics = admin_client.describe_topics(TopicCollection([topic]))
+    topic_partitions = [
+        TopicPartition(topic, p.id) for p in topics[topic].result(KAFKA_TIMEOUT).partitions
+    ]
+
+    earliest_offsets = admin_client.list_offsets(
+        {tp: OffsetSpec.earliest() for tp in topic_partitions}
+    )
+
+    latest_offsets = admin_client.list_offsets({tp: OffsetSpec.latest() for tp in topic_partitions})
+
+    return [
+        {
+            "topic": tp.topic,
+            "partition": tp.partition,
+            "earliest_offset": earliest_offsets[tp].result(KAFKA_TIMEOUT).offset,
+            "latest_offset": latest_offsets[tp].result(KAFKA_TIMEOUT).offset,
+        }
+        for tp in topic_partitions
+    ]
