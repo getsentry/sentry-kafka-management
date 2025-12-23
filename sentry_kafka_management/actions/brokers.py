@@ -11,7 +11,7 @@ from confluent_kafka.admin import (  # type: ignore[import-untyped]
 )
 
 from sentry_kafka_management.actions.clusters import describe_cluster
-from sentry_kafka_management.actions.conf import KAFKA_TIMEOUT
+from sentry_kafka_management.actions.conf import ALLOWED_CONFIGS, KAFKA_TIMEOUT
 
 
 @dataclass
@@ -247,8 +247,15 @@ def apply_configs(
             if validate:
                 validation_errors.append(ConfigChange(broker_id, config_name).to_error(validate))
                 continue
-            # validate config is not read-only when setting
-            assert current_config is not None
+            if current_config is None:
+                # Config doesn't exist on broker yet, but is in ALLOWED_CONFIGS.
+                # Create a placeholder so we can proceed with setting it.
+                current_config = {
+                    "config": config_name,
+                    "value": None,
+                    "isReadOnly": False,
+                    "broker": broker_id,
+                }
             if current_config["isReadOnly"]:
                 validation_errors.append(
                     ConfigChange(broker_id, config_name).to_error(
@@ -322,8 +329,14 @@ def remove_dynamic_configs(
             if validate:
                 validation_errors.append(ConfigChange(broker_id, config_name).to_error(validate))
                 continue
-            # validate config is dynamic before removing
-            assert current_config is not None
+            if current_config is None:
+                # Config doesn't exist on broker so we can't remove it.
+                validation_errors.append(
+                    ConfigChange(broker_id, config_name).to_error(
+                        f"Config '{config_name}' not found on broker {broker_id}"
+                    )
+                )
+                continue
             if current_config["source"] != ConfigSource.DYNAMIC_BROKER_CONFIG.name:
                 validation_errors.append(
                     ConfigChange(broker_id, config_name).to_error(
@@ -360,9 +373,13 @@ def basic_validation(
 ) -> str | None:
     """
     Performs basic validation of a broker and config.
+
+    Allows modification if:
+    - The config already exists on the broker, OR
+    - The config is in ALLOWED_CONFIGS (for setting new configs)
     """
     if broker_id not in valid_broker_ids:
         return f"Broker {broker_id} not found in cluster"
-    if current_config is None:
-        return f"Config '{config_name}' not found on broker {broker_id}"
+    if current_config is None and config_name not in ALLOWED_CONFIGS:
+        return f"Config '{config_name}' is not allowed to be updated on broker {broker_id}"
     return None
