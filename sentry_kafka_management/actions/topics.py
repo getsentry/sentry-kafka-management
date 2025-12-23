@@ -1,6 +1,7 @@
 from typing import Any, Mapping, Sequence
 
 from confluent_kafka import (  # type: ignore[import-untyped]
+    KafkaException,
     TopicCollection,
     TopicPartition,
 )
@@ -64,9 +65,13 @@ def list_offsets(admin_client: AdminClient, topic: str) -> list[dict[str, Any]]:
     Returns the earliest and latest stored offsets for every partition of a topic.
     """
     topics = admin_client.describe_topics(TopicCollection([topic]))
-    topic_partitions = [
-        TopicPartition(topic, p.id) for p in topics[topic].result(KAFKA_TIMEOUT).partitions
-    ]
+
+    try:
+        topic_description = topics[topic].result(KAFKA_TIMEOUT)
+    except KafkaException as e:
+        raise ValueError(f"Topic '{topic}' does not exist or cannot be accessed") from e
+
+    topic_partitions = [TopicPartition(topic, p.id) for p in topic_description.partitions]
 
     earliest_offsets = admin_client.list_offsets(
         {tp: OffsetSpec.earliest() for tp in topic_partitions}

@@ -7,13 +7,8 @@ import click
 
 from sentry_kafka_management.actions.topics import list_offsets as list_offsets_action
 from sentry_kafka_management.actions.topics import list_topics as list_topics_action
-from sentry_kafka_management.brokers import ClusterConfig, YamlKafkaConfig
 from sentry_kafka_management.connectors.admin import get_admin_client
-
-
-def get_cluster_config(config: Path, cluster: str) -> ClusterConfig:
-    yaml_config = YamlKafkaConfig(config)
-    return yaml_config.get_clusters()[cluster]
+from sentry_kafka_management.scripts.config_helpers import get_cluster_config
 
 
 @click.command()
@@ -32,7 +27,7 @@ def get_cluster_config(config: Path, cluster: str) -> ClusterConfig:
 )
 def list_topics(config: Path, cluster: str) -> None:
     """
-    List Kafka topics for a given Kafka cluster.
+    List topics for a given Kafka cluster.
     """
     cluster_config = get_cluster_config(config, cluster)
     client = get_admin_client(cluster_config)
@@ -57,7 +52,7 @@ def list_topics(config: Path, cluster: str) -> None:
 @click.option("-t", "--topic", required=True, help="Name of the topic to query")
 def list_offsets(config: Path, cluster: str, topic: str) -> None:
     """
-    List Kafka topics for a given Kafka cluster.
+    List offsets for a given Kafka cluster.
     """
     cluster_config = get_cluster_config(config, cluster)
     client = get_admin_client(cluster_config)

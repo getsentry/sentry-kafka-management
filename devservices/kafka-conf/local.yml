@@ -9,10 +9,10 @@
   sasl_username: null
   sasl_password: null
   topics:
-  - name: test_topic
-    partitions: 1
-    replication_factor: 1
-    placement:
-      zone: zone1
-    settings:
-      retention.ms: 86400000
+    - name: test_topic
+      partitions: 1
+      replication_factor: 1
+      placement:
+        zone: zone1
+      settings:
+        retention.ms: 86400000

@@ -50,11 +50,11 @@ def test_apply_config_command_success() -> None:
             f.write("test: config")
 
         with (
-            patch("sentry_kafka_management.scripts.brokers.YamlKafkaConfig") as mock_yaml_config,
+            patch("sentry_kafka_management.scripts.brokers.get_cluster_config") as mock_get_cluster,
             patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
             patch("sentry_kafka_management.scripts.brokers.apply_config_action") as mock_action,
         ):
-            mock_yaml_config.return_value.get_clusters.return_value = {"test-cluster": {}}
+            mock_get_cluster.return_value = {}
             mock_get_client.return_value = Mock()
 
             mock_action.return_value = (
@@ -97,11 +97,11 @@ def test_apply_config_command_failure() -> None:
     runner = CliRunner()
 
     with (
-        patch("sentry_kafka_management.scripts.brokers.YamlKafkaConfig") as mock_yaml_config,
+        patch("sentry_kafka_management.scripts.brokers.get_cluster_config") as mock_get_cluster,
         patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
         patch("sentry_kafka_management.scripts.brokers.apply_config_action") as mock_action,
     ):
-        mock_yaml_config.return_value.get_clusters.return_value = {"test-cluster": {}}
+        mock_get_cluster.return_value = {}
         mock_get_client.return_value = Mock()
 
         mock_action.return_value = (
@@ -144,13 +144,13 @@ def test_remove_config_command_success() -> None:
             f.write("test: config")
 
         with (
-            patch("sentry_kafka_management.scripts.brokers.YamlKafkaConfig") as mock_yaml_config,
+            patch("sentry_kafka_management.scripts.brokers.get_cluster_config") as mock_get_cluster,
             patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
             patch(
                 "sentry_kafka_management.scripts.brokers.remove_dynamic_configs_action"
             ) as mock_action,
         ):
-            mock_yaml_config.return_value.get_clusters.return_value = {"test-cluster": {}}
+            mock_get_cluster.return_value = {}
             mock_get_client.return_value = Mock()
 
             mock_action.return_value = (
@@ -190,13 +190,13 @@ def test_remove_config_command_failure() -> None:
         with open("test.yml", "w") as f:
             f.write("test: config")
         with (
-            patch("sentry_kafka_management.scripts.brokers.YamlKafkaConfig") as mock_yaml_config,
+            patch("sentry_kafka_management.scripts.brokers.get_cluster_config") as mock_get_cluster,
             patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
             patch(
                 "sentry_kafka_management.scripts.brokers.remove_dynamic_configs_action"
             ) as mock_action,
         ):
-            mock_yaml_config.return_value.get_clusters.return_value = {"test-cluster": {}}
+            mock_get_cluster.return_value = {}
             mock_get_client.return_value = Mock()
 
             mock_action.return_value = (
@@ -237,7 +237,7 @@ def test_remove_recorded_config_command() -> None:
         dir_path.mkdir(exist_ok=True)
 
         with (
-            patch("sentry_kafka_management.scripts.brokers.YamlKafkaConfig") as mock_yaml_config,
+            patch("sentry_kafka_management.scripts.brokers.get_cluster_config") as mock_get_cluster,
             patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
             patch(
                 "sentry_kafka_management.scripts.brokers.remove_dynamic_configs_action"
@@ -245,7 +245,7 @@ def test_remove_recorded_config_command() -> None:
             patch("sentry_kafka_management.scripts.brokers.read_record_dir") as mock_read,
             patch("sentry_kafka_management.scripts.brokers.cleanup_config_record"),
         ):
-            mock_yaml_config.return_value.get_clusters.return_value = {"test-cluster": {}}
+            mock_get_cluster.return_value = {}
             mock_get_client.return_value = Mock()
 
             mock_read.return_value = {"message.max.bytes": "1000000"}

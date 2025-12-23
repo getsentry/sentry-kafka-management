@@ -8,8 +8,8 @@ import click
 from sentry_kafka_management.actions.clusters import (
     describe_cluster as describe_cluster_action,
 )
-from sentry_kafka_management.brokers import YamlKafkaConfig
 from sentry_kafka_management.connectors.admin import get_admin_client
+from sentry_kafka_management.scripts.config_helpers import get_cluster_config
 
 
 @click.command()
@@ -30,8 +30,7 @@ def describe_cluster(config: Path, cluster: str) -> None:
     """
     Describe a Kafka cluster.
     """
-    yaml_config = YamlKafkaConfig(config)
-    cluster_config = yaml_config.get_clusters()[cluster]
+    cluster_config = get_cluster_config(config, cluster)
     client = get_admin_client(cluster_config)
     result = describe_cluster_action(client)
     click.echo(json.dumps(result, indent=2))
