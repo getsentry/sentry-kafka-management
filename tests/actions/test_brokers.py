@@ -196,6 +196,42 @@ def test_apply_configs_success() -> None:
         )
 
 
+@patch(
+    "sentry_kafka_management.actions.brokers.ALLOWED_CONFIGS", ["leader.replication.throttled.rate"]
+)
+@patch("sentry_kafka_management.actions.brokers.describe_broker_configs")
+@patch("sentry_kafka_management.actions.brokers.describe_cluster")
+@patch("sentry_kafka_management.actions.brokers._update_configs")
+def test_apply_config_allowlist(
+    mock_update: Mock, mock_describe_cluster: Mock, mock_describe_broker_configs: Mock
+) -> None:
+    """Tests configs not found on broker but are in allowlist should be applied."""
+    mock_client = Mock()
+    mock_describe_cluster.return_value = [
+        {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
+    ]
+    mock_update.return_value = ([], [])
+
+    mock_describe_broker_configs.return_value = []
+
+    config_changes = {"leader.replication.throttled.rate": "100000"}
+    apply_configs(mock_client, config_changes, ["0"])
+
+    mock_update.assert_called_once_with(
+        admin_client=mock_client,
+        config_changes=[
+            ConfigChange(
+                broker_id="0",
+                config_name="leader.replication.throttled.rate",
+                old_value=None,
+                new_value="100000",
+            )
+        ],
+        update_type=AlterConfigOpType.SET,
+        configs_record_dir=None,
+    )
+
+
 def test_apply_config_validation() -> None:
     """Test that applies to read-only configs are rejected."""
     mock_client = Mock()
@@ -304,6 +340,34 @@ def test_remove_dynamic_configs_validation() -> None:
         ]
 
         success, error = remove_dynamic_configs(mock_client, ["max.message.bytes"], ["0"])
+
+        assert len(success) == 0
+        assert len(error) == 1
+        assert error[0]["status"] == "error"
+        mock_client.incremental_alter_configs.assert_not_called()
+
+
+def test_remove_dynamic_configs_allowlist() -> None:
+    """Tests deletes of configs not found on broker should still error even if in allowlist."""
+    mock_client = Mock()
+
+    with (
+        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+        ) as mock_describe_broker_configs,
+        patch("sentry_kafka_management.actions.brokers._update_configs") as mock_update,
+    ):
+        mock_describe_cluster.return_value = [
+            {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
+        ]
+        mock_update.return_value = ([], [])
+
+        mock_describe_broker_configs.return_value = []
+
+        success, error = remove_dynamic_configs(
+            mock_client, ["leader.replication.throttled.rate"], ["0"]
+        )
 
         assert len(success) == 0
         assert len(error) == 1
