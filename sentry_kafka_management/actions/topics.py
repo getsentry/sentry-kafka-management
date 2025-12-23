@@ -1,9 +1,15 @@
 from typing import Any, Mapping, Sequence
 
+from confluent_kafka import (  # type: ignore[import-untyped]
+    KafkaException,
+    TopicCollection,
+    TopicPartition,
+)
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
     AdminClient,
     ConfigResource,
     ConfigSource,
+    OffsetSpec,
 )
 
 from sentry_kafka_management.actions.conf import KAFKA_TIMEOUT
@@ -52,3 +58,42 @@ def describe_topic_configs(
             all_configs.append(config_item)
 
     return all_configs
+
+
+def list_offsets(admin_client: AdminClient, topic: str) -> list[dict[str, Any]]:
+    """
+    Returns the earliest and latest stored offsets for every partition of a topic.
+    """
+    try:
+        topics = admin_client.describe_topics(TopicCollection([topic]))
+        topic_description = topics[topic].result(KAFKA_TIMEOUT)
+    except KafkaException as e:
+        raise ValueError(f"Topic '{topic}' does not exist or cannot be accessed") from e
+
+    topic_partitions = [TopicPartition(topic, p.id) for p in topic_description.partitions]
+
+    earliest_offsets = admin_client.list_offsets(
+        {tp: OffsetSpec.earliest() for tp in topic_partitions}
+    )
+
+    latest_offsets = admin_client.list_offsets({tp: OffsetSpec.latest() for tp in topic_partitions})
+
+    result = []
+
+    for tp in topic_partitions:
+        try:
+            earliest_offset = earliest_offsets[tp].result(KAFKA_TIMEOUT).offset
+            latest_offset = latest_offsets[tp].result(KAFKA_TIMEOUT).offset
+        except KafkaException as e:
+            raise ValueError(f"Failed to retrieve offsets for topic '{topic}'") from e
+
+        result.append(
+            {
+                "topic": tp.topic,
+                "partition": tp.partition,
+                "earliest_offset": earliest_offset,
+                "latest_offset": latest_offset,
+            }
+        )
+
+    return result

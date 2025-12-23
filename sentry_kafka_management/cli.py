@@ -12,13 +12,14 @@ from sentry_kafka_management.scripts.brokers import (
     remove_recorded_dynamic_configs,
 )
 from sentry_kafka_management.scripts.clusters import describe_cluster
-from sentry_kafka_management.scripts.topics import list_topics
+from sentry_kafka_management.scripts.topics import list_offsets, list_topics
 
 COMMANDS = [
     apply_configs,
     describe_broker_configs,
     describe_cluster,
     list_topics,
+    list_offsets,
     remove_dynamic_configs,
     remove_recorded_dynamic_configs,
 ]

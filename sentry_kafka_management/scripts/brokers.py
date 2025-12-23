@@ -19,8 +19,8 @@ from sentry_kafka_management.actions.brokers import (
 from sentry_kafka_management.actions.brokers import (
     remove_dynamic_configs as remove_dynamic_configs_action,
 )
-from sentry_kafka_management.brokers import YamlKafkaConfig
 from sentry_kafka_management.connectors.admin import get_admin_client
+from sentry_kafka_management.scripts.config_helpers import get_cluster_config
 
 
 def parse_config_changes(
@@ -77,8 +77,7 @@ def describe_broker_configs(config: Path, cluster: str) -> None:
     """
     List all broker configs on a cluster, including whether they were set dynamically or statically.
     """
-    yaml_config = YamlKafkaConfig(config)
-    cluster_config = yaml_config.get_clusters()[cluster]
+    cluster_config = get_cluster_config(config, cluster)
     client = get_admin_client(cluster_config)
     result = describe_broker_configs_action(client)
     click.echo(json.dumps(result, indent=2))
@@ -148,8 +147,7 @@ def apply_configs(
         --config-changes '{"message.max.bytes": "1048588", "max.connections": "1000"}'
         --broker-ids '0,1,2'
     """
-    yaml_config = YamlKafkaConfig(config)
-    cluster_config = yaml_config.get_clusters()[cluster]
+    cluster_config = get_cluster_config(config, cluster)
     client = get_admin_client(cluster_config)
 
     success, error = apply_config_action(
@@ -227,8 +225,7 @@ def remove_dynamic_configs(
         --configs-to-remove '["message.max.bytes", "max.connections"]'
         --broker-ids '0,1,2'
     """
-    yaml_config = YamlKafkaConfig(config)
-    cluster_config = yaml_config.get_clusters()[cluster]
+    cluster_config = get_cluster_config(config, cluster)
     client = get_admin_client(cluster_config)
 
     success, error = remove_dynamic_configs_action(
@@ -314,8 +311,7 @@ def remove_recorded_dynamic_configs(
         --configs-record-dir /emergency-configs
         --broker-ids '0,1,2'
     """
-    yaml_config = YamlKafkaConfig(config)
-    cluster_config = yaml_config.get_clusters()[cluster]
+    cluster_config = get_cluster_config(config, cluster)
     client = get_admin_client(cluster_config)
 
     configs_to_remove = read_record_dir(configs_record_dir)
