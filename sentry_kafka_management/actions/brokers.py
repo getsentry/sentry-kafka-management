@@ -381,5 +381,9 @@ def basic_validation(
     if broker_id not in valid_broker_ids:
         return f"Broker {broker_id} not found in cluster"
     if current_config is None and config_name not in ALLOWED_CONFIGS:
-        return f"Config '{config_name}' is not allowed to be updated on broker {broker_id}"
+        return (
+            f"Config '{config_name}' does not exist on broker {broker_id} and is not in "
+            "ALLOWED_CONFIGS. To set a config that doesn't exist yet, add it to "
+            "ALLOWED_CONFIGS in sentry_kafka_management/actions/conf.py"
+        )
     return None
