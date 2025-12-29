@@ -9,9 +9,11 @@ from sentry_kafka_management.actions.local.server_properties import (
 )
 
 
-def test_read_server_properties_basic() -> None:
-    """Test reading a basic server.properties file with key-value pairs."""
-    content = """# Kafka broker configuration
+@pytest.mark.parametrize(
+    "content,expected_result",
+    [
+        pytest.param(
+            """# Kafka broker configuration
 broker.id=0
 
 
@@ -22,34 +24,64 @@ num.io.threads=8
 
 socket.send.buffer.bytes=102400
 
-"""
-    with NamedTemporaryFile(mode="w", suffix=".properties", delete=False) as f:
-        f.write(content)
-        f.flush()
-        properties_file = Path(f.name)
-
-    try:
-        result = read_server_properties(properties_file)
-        assert result == {
-            "broker.id": "0",
-            "log.dirs": "/tmp/kafka-logs",
-            "num.network.threads": "8",
-            "num.io.threads": "8",
-            "socket.send.buffer.bytes": "102400",
-        }
-    finally:
-        properties_file.unlink()
-
-
-def test_read_server_properties_with_whitespace() -> None:
-    """Test that whitespace around keys and values is properly stripped."""
-    content = """broker.id = 0
+""",
+            {
+                "broker.id": "0",
+                "log.dirs": "/tmp/kafka-logs",
+                "num.network.threads": "8",
+                "num.io.threads": "8",
+                "socket.send.buffer.bytes": "102400",
+            },
+            id="basic",
+        ),
+        pytest.param(
+            """broker.id = 0
   log.dirs=/tmp/kafka-logs
 num.network.threads=8
 
 # Comment line
 num.io.threads=  16
-"""
+""",
+            {
+                "broker.id": "0",
+                "log.dirs": "/tmp/kafka-logs",
+                "num.network.threads": "8",
+                "num.io.threads": "16",
+            },
+            id="whitespace",
+        ),
+        pytest.param(
+            """broker.id=0
+advertised.listeners=PLAINTEXT://broker1:9092,SSL://broker1:9093,SASL_SSL://broker1:9094
+listeners=PLAINTEXT://:9092,SSL://:9093
+log.dirs=/var/lib/kafka/data-1,/var/lib/kafka/data-2,/var/lib/kafka/data-3
+""",
+            {
+                "broker.id": "0",
+                "advertised.listeners": (
+                    "PLAINTEXT://broker1:9092,SSL://broker1:9093,SASL_SSL://broker1:9094"
+                ),
+                "listeners": "PLAINTEXT://:9092,SSL://:9093",
+                "log.dirs": ("/var/lib/kafka/data-1,/var/lib/kafka/data-2,/var/lib/kafka/data-3"),
+            },
+            id="comma_separated_values",
+        ),
+        pytest.param(
+            """broker.id=0
+sasl.jaas.config=org.apache.kafka.login required username="admin" password="secret";
+""",
+            {
+                "broker.id": "0",
+                "sasl.jaas.config": (
+                    'org.apache.kafka.login required username="admin" password="secret";'
+                ),
+            },
+            id="equals_in_value",
+        ),
+    ],
+)
+def test_read_server_properties_valid_files(content: str, expected_result: dict[str, str]) -> None:
+    """Test reading various valid server.properties file formats."""
     with NamedTemporaryFile(mode="w", suffix=".properties", delete=False) as f:
         f.write(content)
         f.flush()
@@ -57,12 +89,7 @@ num.io.threads=  16
 
     try:
         result = read_server_properties(properties_file)
-        assert result == {
-            "broker.id": "0",
-            "log.dirs": "/tmp/kafka-logs",
-            "num.network.threads": "8",
-            "num.io.threads": "16",
-        }
+        assert result == expected_result
     finally:
         properties_file.unlink()
 
