@@ -9,7 +9,6 @@ from sentry_kafka_management.scripts.brokers import (
     apply_configs,
     describe_broker_configs,
     remove_dynamic_configs,
-    remove_recorded_dynamic_configs,
 )
 
 
@@ -223,57 +222,4 @@ def test_remove_config_command_failure() -> None:
                 ],
             )
             assert result.exit_code != 0
-            mock_action.assert_called_once()
-
-
-def test_remove_recorded_config_command() -> None:
-    """Test the CLI command for recorded config removal."""
-    runner = CliRunner()
-
-    with runner.isolated_filesystem():
-        with open("test.yml", "w") as f:
-            f.write("test: config")
-        dir_path = Path.cwd() / "emergency-configs"
-        dir_path.mkdir(exist_ok=True)
-
-        with (
-            patch("sentry_kafka_management.scripts.brokers.get_cluster_config") as mock_get_cluster,
-            patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
-            patch(
-                "sentry_kafka_management.scripts.brokers.remove_dynamic_configs_action"
-            ) as mock_action,
-            patch("sentry_kafka_management.scripts.brokers.read_record_dir") as mock_read,
-            patch("sentry_kafka_management.scripts.brokers.cleanup_config_record"),
-        ):
-            mock_get_cluster.return_value = {}
-            mock_get_client.return_value = Mock()
-
-            mock_read.return_value = {"message.max.bytes": "1000000"}
-            mock_action.return_value = (
-                [
-                    {
-                        "broker_id": "0",
-                        "config_name": "message.max.bytes",
-                        "status": "success",
-                        "old_value": "1000000",
-                        "new_value": None,
-                    }
-                ],
-                [],
-            )
-            result = runner.invoke(
-                remove_recorded_dynamic_configs,
-                [
-                    "-c",
-                    "test.yml",
-                    "-n",
-                    "test-cluster",
-                    "--configs-record-dir",
-                    dir_path.as_posix(),
-                    "--broker-ids",
-                    "0",
-                    "--cleanup-records",
-                ],
-            )
-            assert result.exit_code == 0
             mock_action.assert_called_once()
