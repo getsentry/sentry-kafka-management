@@ -9,6 +9,8 @@ from sentry_kafka_management.scripts.brokers import (
     apply_configs,
     describe_broker_configs,
     remove_dynamic_configs,
+)
+from sentry_kafka_management.scripts.brokers_local.filesystem import (
     remove_recorded_dynamic_configs,
 )
 from sentry_kafka_management.scripts.clusters import describe_cluster

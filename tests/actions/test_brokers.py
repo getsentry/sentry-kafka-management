@@ -12,10 +12,7 @@ from sentry_kafka_management.actions.brokers import (
     ConfigChange,
     _update_configs,
     apply_configs,
-    cleanup_config_record,
     describe_broker_configs,
-    read_record_dir,
-    record_config,
     remove_dynamic_configs,
 )
 
@@ -56,59 +53,6 @@ def test_describe_broker_configs() -> None:
     result = describe_broker_configs(mock_client)
     mock_client.describe_configs.assert_called_once()
     assert result == expected
-
-
-def test_record_config() -> None:
-    with TemporaryDirectory() as tmpdir:
-        dir_path = Path(tmpdir)
-        record_config(
-            "num.network.threads",
-            "4",
-            dir_path,
-        )
-        with open(dir_path / "num.network.threads") as f:
-            value = f.read()
-            assert value == "4"
-        # ensure we overwrite the file properly
-        record_config(
-            "num.network.threads",
-            "5",
-            dir_path,
-        )
-        with open(dir_path / "num.network.threads") as f:
-            value = f.read()
-            assert value == "5"
-
-
-def test_read_record_dir() -> None:
-    confs = ["num.network.threads", "num.io.threads"]
-    with TemporaryDirectory() as tmpdir:
-        dir_path = Path(tmpdir)
-        for conf in confs:
-            record_config(
-                conf,
-                "4",
-                dir_path,
-            )
-
-        result = read_record_dir(dir_path)
-        assert result == {"num.network.threads": "4", "num.io.threads": "4"}
-        assert len(list(dir_path.iterdir())) == 2
-
-
-def test_cleanup_config_record() -> None:
-    confs = ["num.network.threads", "num.io.threads"]
-    with TemporaryDirectory() as tmpdir:
-        dir_path = Path(tmpdir)
-        for conf in confs:
-            record_config(
-                conf,
-                "4",
-                dir_path,
-            )
-        for conf in confs:
-            cleanup_config_record(dir_path, conf)
-        assert len(list(dir_path.iterdir())) == 0
 
 
 def test_update_config_apply() -> None:
