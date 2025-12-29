@@ -7,8 +7,9 @@ def read_server_properties(properties_file: Path) -> dict[str, str]:
 
     Parses the standard Kafka server.properties format:
     - Config lines are in the format: key=value
-    - Empty lines and lines starting with '#' are ignored
+    - Empty lines and comments (lines starting with '#' or '!') are ignored
     - Whitespace around keys and values is stripped
+    - Line continuation with backslash (\\) is supported
 
     Args:
         properties_file: Path to the server.properties file
@@ -22,25 +23,32 @@ def read_server_properties(properties_file: Path) -> dict[str, str]:
     configs: dict[str, str] = {}
 
     with open(properties_file, "r") as f:
-        for line_num, line in enumerate(f, start=1):
-            # Strip whitespace from the line
-            line = line.strip()
+        lines = f.readlines()
 
-            # Skip empty lines and comments
-            if not line or line.startswith("#"):
-                continue
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip("\n\r")
 
-            # Parse key=value pairs
-            if "=" in line:
-                # Split on first '=' to handle values that contain '='
-                key, value = line.split("=", 1)
-                key = key.strip()
-                value = value.strip()
+        while line.endswith("\\") and i + 1 < len(lines):
+            next_line = lines[i + 1].rstrip("\n\r")
+            line = line[:-1] + next_line
+            i += 1
 
-                if key:  # Only add if key is non-empty
-                    configs[key] = value
-            else:
-                # Skip malformed lines (or could raise an error if strict parsing is needed)
-                print(f"Warning: Skipping malformed line {line_num}: {line}")
+        line = line.strip()
+
+        if not line or line.startswith("#") or line.startswith("!"):
+            i += 1
+            continue
+
+        if "=" in line:
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if key:
+                configs[key] = value
+        else:
+            print(f"Warning: Skipping malformed line {i + 1}: {line}")
+
+        i += 1
 
     return configs

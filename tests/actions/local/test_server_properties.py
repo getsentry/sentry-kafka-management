@@ -78,6 +78,23 @@ sasl.jaas.config=org.apache.kafka.login required username="admin" password="secr
             },
             id="equals_in_value",
         ),
+        pytest.param(
+            (
+                "broker.id=0\n"
+                "listener.name.internal.scram-sha-256.sasl.jaas.config="
+                "org.apache.kafka.common.security.scram.ScramLoginModule required \\\n"
+                'username="admin" \\\n'
+                'password="password";\n'
+            ),
+            {
+                "broker.id": "0",
+                "listener.name.internal.scram-sha-256.sasl.jaas.config": (
+                    "org.apache.kafka.common.security.scram.ScramLoginModule required "
+                    'username="admin" password="password";'
+                ),
+            },
+            id="line_continuation",
+        ),
     ],
 )
 def test_read_server_properties_valid_files(content: str, expected_result: dict[str, str]) -> None:
