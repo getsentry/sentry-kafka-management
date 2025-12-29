@@ -1,3 +1,20 @@
+## 0.0.10
+
+### New Features ✨
+
+- (configs) Add an allowlist for updating Kafka configs by @lvthanh03 in [#41](https://github.com/getsentry/sentry-kafka-management/pull/41)
+
+### Build / dependencies / internal 🔧
+
+#### Brokers
+
+- Separate scripts/actions that need to be run locally by @bmckerry in [#42](https://github.com/getsentry/sentry-kafka-management/pull/42)
+- Separate scripts/actions that need to be run locally by @bmckerry in [#42](https://github.com/getsentry/sentry-kafka-management/pull/42)
+
+### Other
+
+- release: 0.0.9 by @getsentry-bot in [cd529779](https://github.com/getsentry/sentry-kafka-management/commit/cd5297793a6e2b03805f9d74bcb3abea1e4f62e7)
+
 ## 0.0.9
 
 - No documented changes.
