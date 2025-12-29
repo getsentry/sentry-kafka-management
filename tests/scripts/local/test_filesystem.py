@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 from click.testing import CliRunner
 
-from sentry_kafka_management.scripts.brokers_local.filesystem import (
+from sentry_kafka_management.scripts.local.filesystem import (
     remove_recorded_dynamic_configs,
 )
 
@@ -20,18 +20,16 @@ def test_remove_recorded_config_command() -> None:
 
         with (
             patch(
-                "sentry_kafka_management.scripts.brokers_local.filesystem.get_cluster_config"
+                "sentry_kafka_management.scripts.local.filesystem.get_cluster_config"
             ) as mock_get_cluster,
             patch(
-                "sentry_kafka_management.scripts.brokers_local.filesystem.get_admin_client"
+                "sentry_kafka_management.scripts.local.filesystem.get_admin_client"
             ) as mock_get_client,
             patch(
-                "sentry_kafka_management.scripts.brokers_local.filesystem.remove_dynamic_configs_action"  # noqa: E501
+                "sentry_kafka_management.scripts.local.filesystem.remove_dynamic_configs_action"  # noqa: E501
             ) as mock_action,
-            patch(
-                "sentry_kafka_management.scripts.brokers_local.filesystem.read_record_dir"
-            ) as mock_read,
-            patch("sentry_kafka_management.scripts.brokers_local.filesystem.cleanup_config_record"),
+            patch("sentry_kafka_management.scripts.local.filesystem.read_record_dir") as mock_read,
+            patch("sentry_kafka_management.scripts.local.filesystem.cleanup_config_record"),
         ):
             mock_get_cluster.return_value = {}
             mock_get_client.return_value = Mock()

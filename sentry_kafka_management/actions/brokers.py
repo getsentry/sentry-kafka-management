@@ -10,9 +10,9 @@ from confluent_kafka.admin import (  # type: ignore[import-untyped]
     ConfigSource,
 )
 
-from sentry_kafka_management.actions.brokers_local.filesystem import record_config
 from sentry_kafka_management.actions.clusters import describe_cluster
 from sentry_kafka_management.actions.conf import ALLOWED_CONFIGS, KAFKA_TIMEOUT
+from sentry_kafka_management.actions.local.filesystem import record_config
 
 
 @dataclass

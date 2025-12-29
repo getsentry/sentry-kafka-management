@@ -1,7 +1,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from sentry_kafka_management.actions.brokers_local.filesystem import (
+from sentry_kafka_management.actions.local.filesystem import (
     cleanup_config_record,
     read_record_dir,
     record_config,
