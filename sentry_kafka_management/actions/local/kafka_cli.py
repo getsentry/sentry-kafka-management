@@ -19,11 +19,11 @@ class ConfigTypes(StrEnum):
     DYNAMIC_DEFAULT_BROKER_CONFIG = "DYNAMIC_DEFAULT_BROKER_CONFIG"
 
     @staticmethod
-    def values() -> set[str]:
+    def values() -> list[str]:
         """
         Get all enum values.
         """
-        return set(ConfigTypes._value2member_map_.keys())
+        return list(ConfigTypes._value2member_map_.keys())
 
 
 @dataclass
@@ -72,7 +72,7 @@ def _str_to_dict(dictstr: str) -> dict[str, str]:
     """
     Converts a string representation of a dict into a dict.
     Differs from `json.loads()` by expecting the string to be in the format:
-    `"{key:config_name=value, key:config_name=value, ...}"`
+    `"{CONFIG_TYPE:config_name=value, CONFIG_TYPE:config_name=value, ...}"`
     """
     # if dictstr is empty, return that
     if dictstr == "{}":
@@ -84,13 +84,22 @@ def _str_to_dict(dictstr: str) -> dict[str, str]:
         )
     stripped = dictstr.strip("{}")
 
-    # regex that:
-    # - extracts the all-caps part of an entry as a key `([A-Z_]+)`
-    # - gets rid of the config name after the colon `:[^=]+=`
+    # Regex that:
+    # - extracts the config name: `({config_types_pattern})`
+    # - gets rid of the config name after the colon: `:[^=]+=`
     # - captures the value until we hit a comma, optional whitespace,
-    #   and all-caps chars `((?:(?!,\s*[A-Z_]+:).)+)`
-    regex = re.compile(r"([A-Z_]+):[^=]+=((?:(?!,\s*[A-Z_]+:).)+)")
+    #   and a config name: `((?:(?!,\s*{config_types_pattern}:).)*)`
+    # This will break if we ever have one of ConfigTypes as the value of a config,
+    # if that happens something has gone terribly wrong
+    config_types_pattern = "(?:" + "|".join(ConfigTypes.values()) + ")"
+    regex = re.compile(rf"({config_types_pattern}):[^=]+=((?:(?!,\s*{config_types_pattern}:).)*)")
+
     res = {key: value.strip() for key, value in regex.findall(stripped)}
+    if not all([conf in ConfigTypes.values() for conf in res.keys()]):
+        raise ValueError(
+            f'Extracted invalid keys from config synonyms in dict "{dictstr}", '
+            f"expected one of {ConfigTypes.values()} but got {res.keys()}"
+        )
     if not res:
         raise ValueError(f"Could not extract config synonyms from string '{dictstr}'")
     return res
@@ -148,11 +157,6 @@ def _parse_line(line: str) -> Config:
     is_sensitive = _str_to_bool(items[1].split("=")[1])
     # extract dynamic/static/default values, if they exist
     synonyms = _str_to_dict(items[2].split("=", 1)[1])
-    if not all([conf in ConfigTypes.values() for conf in synonyms.keys()]):
-        raise ValueError(
-            f'Extracted invalid keys from config synonyms in line "{line}", '
-            f"expected one of {ConfigTypes.values()} but got {synonyms.keys()}"
-        )
     return Config(
         config_name=name,
         active_value=value,
