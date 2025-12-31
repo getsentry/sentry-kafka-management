@@ -23,8 +23,8 @@ def test_str_to_bool() -> None:
 
 
 def test_str_to_dict() -> None:
-    assert _str_to_dict("{foo:fake=bar, test:fake=123}") == {"foo": "bar", "test": "123"}
-    assert _str_to_dict("{foo:bar=bin:baz}") == {"foo": "bin:baz"}
+    assert _str_to_dict("{FOO:fake=bar, TEST:fake=123}") == {"FOO": "bar", "TEST": "123"}
+    assert _str_to_dict("{FOO:bar=bin:baz}") == {"FOO": "bin:baz"}
     with pytest.raises(ValueError):
         _str_to_dict("foo:bar")
     with pytest.raises(ValueError):
@@ -37,7 +37,7 @@ def test_run_kafka_configs_describe(mock_run: MagicMock) -> None:
     mock_run_output.check_returncode.return_value = 0
     mock_run_output.stdout = "All configs for broker 1 are:\n    foo:bar"
     mock_run.return_value = mock_run_output
-    assert _run_kafka_configs_describe(1) == ["foo:bar"]
+    assert _run_kafka_configs_describe(1, "localhost:9092") == ["foo:bar"]
 
 
 def test_parse_line() -> None:
@@ -51,10 +51,23 @@ def test_parse_line() -> None:
         active_value="1",
         is_sensitive=False,
         dynamic_value=None,
+        dynamic_default_value=None,
         static_value="1",
         default_value="50",
     )
     assert _parse_line(regular_line) == expected
+
+    empty_synonyms = "offsets.topic.num.partitions=1 sensitive=false synonyms={}"
+    expected = Config(
+        config_name="offsets.topic.num.partitions",
+        active_value="1",
+        is_sensitive=False,
+        dynamic_value=None,
+        dynamic_default_value=None,
+        static_value=None,
+        default_value=None,
+    )
+    assert _parse_line(empty_synonyms) == expected
 
     malformed_line = "offsets.topic.num.partitions=1"
     with pytest.raises(ValueError):
@@ -64,7 +77,7 @@ def test_parse_line() -> None:
         "{FOO:offsets.topic.num.partitions=1,"
         "BAR:offsets.topic.num.partitions=50}"
     )
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         _parse_line(wrong_keys)
 
 
@@ -79,6 +92,7 @@ def test_parse_output() -> None:
             is_sensitive=False,
             active_value="30000",
             dynamic_value=None,
+            dynamic_default_value=None,
             static_value=None,
             default_value="30000",
         ),
@@ -87,6 +101,7 @@ def test_parse_output() -> None:
             is_sensitive=False,
             active_value="1",
             dynamic_value=None,
+            dynamic_default_value=None,
             static_value=None,
             default_value="1",
         ),
@@ -108,6 +123,7 @@ def test_get_active_broker_configs(mock_cli: MagicMock) -> None:
             is_sensitive=False,
             active_value="30000",
             dynamic_value=None,
+            dynamic_default_value=None,
             static_value=None,
             default_value="30000",
         ),
@@ -116,6 +132,7 @@ def test_get_active_broker_configs(mock_cli: MagicMock) -> None:
             is_sensitive=False,
             active_value="1",
             dynamic_value=None,
+            dynamic_default_value=None,
             static_value=None,
             default_value="1",
         ),
