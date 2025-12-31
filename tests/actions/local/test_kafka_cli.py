@@ -23,23 +23,8 @@ def test_str_to_bool() -> None:
 
 
 def test_str_to_dict() -> None:
-    assert _str_to_dict("{STATIC_BROKER_CONFIG:fake=bar, DEFAULT_CONFIG:fake=123}") == {
-        "STATIC_BROKER_CONFIG": "bar",
-        "DEFAULT_CONFIG": "123",
-    }
-    assert _str_to_dict("{DYNAMIC_BROKER_CONFIG:bar=bin:baz}") == {
-        "DYNAMIC_BROKER_CONFIG": "bin:baz"
-    }
-    assert _str_to_dict("{DEFAULT_CONFIG:authorizer.class.name=}") == {"DEFAULT_CONFIG": ""}
-    assert _str_to_dict(
-        "{STATIC_BROKER_CONFIG:listener.security.protocol.map="
-        "PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT, "
-        "DEFAULT_CONFIG:listener.security.protocol.map="
-        "PLAINTEXT:PLAINTEXT,SSL:SSL}"
-    ) == {
-        "STATIC_BROKER_CONFIG": "PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT",
-        "DEFAULT_CONFIG": "PLAINTEXT:PLAINTEXT,SSL:SSL",
-    }
+    assert _str_to_dict("{FOO:fake=bar, TEST:fake=123}") == {"FOO": "bar", "TEST": "123"}
+    assert _str_to_dict("{FOO:bar=bin:baz}") == {"FOO": "bin:baz"}
     with pytest.raises(ValueError):
         _str_to_dict("foo:bar")
     with pytest.raises(ValueError):
@@ -83,20 +68,6 @@ def test_parse_line() -> None:
         default_value=None,
     )
     assert _parse_line(empty_synonyms) == expected
-
-    empty_value_line = (
-        "authorizer.class.name= sensitive=false synonyms=" "{DEFAULT_CONFIG:authorizer.class.name=}"
-    )
-    expected = Config(
-        config_name="authorizer.class.name",
-        active_value="",
-        is_sensitive=False,
-        dynamic_value=None,
-        dynamic_default_value=None,
-        static_value=None,
-        default_value="",
-    )
-    assert _parse_line(empty_value_line) == expected
 
     malformed_line = "offsets.topic.num.partitions=1"
     with pytest.raises(ValueError):

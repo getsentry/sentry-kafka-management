@@ -85,15 +85,11 @@ def _str_to_dict(dictstr: str) -> dict[str, str]:
     stripped = dictstr.strip("{}")
 
     # regex that:
-    # - matches known config type keys (DEFAULT_CONFIG, STATIC_BROKER_CONFIG, etc.)
+    # - extracts the all-caps part of an entry as a key `([A-Z_]+)`
     # - gets rid of the config name after the colon `:[^=]+=`
-    # - captures the value (zero or more chars) until we hit a comma,
-    #   optional whitespace, and a known config type key followed by a colon
-    config_types_pattern = (
-        "(?:DEFAULT_CONFIG|STATIC_BROKER_CONFIG|"
-        "DYNAMIC_BROKER_CONFIG|DYNAMIC_DEFAULT_BROKER_CONFIG)"
-    )
-    regex = re.compile(rf"({config_types_pattern}):[^=]+=((?:(?!,\s*{config_types_pattern}:).)*)")
+    # - captures the value until we hit a comma, optional whitespace,
+    #   and all-caps chars `((?:(?!,\s*[A-Z_]+:).)+)`
+    regex = re.compile(r"([A-Z_]+):[^=]+=((?:(?!,\s*[A-Z_]+:).)+)")
     res = {key: value.strip() for key, value in regex.findall(stripped)}
     if not res:
         raise ValueError(f"Could not extract config synonyms from string '{dictstr}'")
