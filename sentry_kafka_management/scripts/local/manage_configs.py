@@ -5,8 +5,8 @@ from pathlib import Path
 
 import click
 
-from sentry_kafka_management.actions.local.brokers import (
-    apply_desired_configs as apply_desired_configs_action,
+from sentry_kafka_management.actions.local.manage_configs import (
+    update_config_state as update_config_state_action,
 )
 from sentry_kafka_management.connectors.admin import get_admin_client
 from sentry_kafka_management.scripts.config_helpers import get_cluster_config
@@ -45,7 +45,7 @@ from sentry_kafka_management.scripts.config_helpers import get_cluster_config
     is_flag=True,
     help="Whether to dry run the config changes, only performs validation",
 )
-def apply_desired_configs(
+def update_config_state(
     config: Path,
     cluster: str,
     record_dir: Path,
@@ -53,8 +53,8 @@ def apply_desired_configs(
     dry_run: bool = False,
 ) -> None:
     """
-    Applies desired broker configs by looking at emergency configs, kafka-configs
-    CLI output and server.properties file.
+    Updates the config state of the current broker by looking at emergency configs,
+    kafka-configs CLI output, and server.properties file.
 
     This command is intended to be run locally on a broker to manage dynamic
     configs. It will:
@@ -72,7 +72,7 @@ def apply_desired_configs(
     cluster_config = get_cluster_config(config, cluster)
     client = get_admin_client(cluster_config)
 
-    success, error = apply_desired_configs_action(
+    success, error = update_config_state_action(
         client,
         record_dir,
         properties_file,

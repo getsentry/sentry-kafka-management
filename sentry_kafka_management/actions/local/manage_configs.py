@@ -17,7 +17,7 @@ from sentry_kafka_management.actions.local.server_properties import (
 )
 
 
-def apply_desired_configs(
+def update_config_state(
     admin_client: AdminClient,
     record_dir: Path,
     properties_file: Path,
@@ -27,15 +27,14 @@ def apply_desired_configs(
     Gets the desired configs from reading emergency configs from record_dir,
     parsing output from kafka-configs CLI and parsing server.properties file.
 
-    Applies the desired configs to the current broker the action is running on,
-    which is determined in server.properties file.
+    Updates the configs of the current broker the action is running on to the desired state.
 
     Adding configs:
     - Emergency configs must always be set as dynamic configs
     - If active value != desired value (from server.properties), set as dynamic config
 
     Removing configs:
-    - If a config has a dynamic value set, but the static value == desired value,
+    - If a config has a dynamic value set, but the active static value == desired value,
       remove the dynamic config (since static is correct)
     - Don't remove dynamic configs that come from emergency configs
 
@@ -60,9 +59,6 @@ def apply_desired_configs(
 
     for config_name, desired_value in properties_configs.items():
         if config_name in emergency_configs:
-            continue
-
-        if config_name not in kafka_configs:
             continue
 
         active_config = kafka_configs[config_name]
