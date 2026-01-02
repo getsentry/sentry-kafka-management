@@ -66,6 +66,16 @@ def update_config_state(
             continue
 
         active_config = kafka_configs[config_name]
+
+        # If there's a dynamic value set, but the static value matches the desired value,
+        # we should remove the dynamic config instead of applying a new value
+        if (
+            active_config.dynamic_value is not None
+            and active_config.static_value is not None
+            and active_config.static_value == desired_value
+        ):
+            continue
+
         if active_config.active_value != desired_value:
             configs_to_apply[config_name] = desired_value
 

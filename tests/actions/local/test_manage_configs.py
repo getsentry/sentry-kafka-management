@@ -194,6 +194,7 @@ def test_update_config_state_remove_dynamic_when_static_matches(
 
     assert len(success) == 1
     assert len(errors) == 0
+    mock_apply_configs.assert_not_called()
     mock_remove_configs.assert_called_once_with(
         mock_admin_client,
         ["message.max.bytes"],
