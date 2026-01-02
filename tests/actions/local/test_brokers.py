@@ -106,15 +106,6 @@ def test_update_config_state_apply_from_properties(
             static_value=None,
             default_value="8",
         ),
-        Config(
-            config_name="background.threads",
-            is_sensitive=False,
-            active_value="10",
-            dynamic_value=None,
-            dynamic_default_value=None,
-            static_value=None,
-            default_value="10",
-        ),
     ]
 
     mock_apply_configs.return_value = (
@@ -128,7 +119,7 @@ def test_update_config_state_apply_from_properties(
             ConfigChange(
                 broker_id="1001",
                 config_name="background.threads",
-                old_value="10",
+                old_value=None,
                 new_value="20",
             ).to_success(),
         ],
@@ -271,4 +262,57 @@ def test_update_config_state_keep_emergency_config(
         dry_run=True,
     )
 
+    mock_remove_configs.assert_not_called()
+
+
+@patch("sentry_kafka_management.actions.local.manage_configs.remove_dynamic_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.apply_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.get_active_broker_configs")
+def test_update_config_state_no_op_when_active_matches_desired(
+    mock_get_configs: MagicMock,
+    mock_apply_configs: MagicMock,
+    mock_remove_configs: MagicMock,
+    mock_admin_client: MagicMock,
+    temp_record_dir: Path,
+    temp_properties_file: Path,
+) -> None:
+    """Test that no changes are made when active value already matches desired value."""
+    temp_properties_file.write_text("broker.id=1001\n" "num.io.threads=8\n")
+
+    mock_get_configs.return_value = [
+        broker_id_config(),
+        Config(
+            config_name="num.io.threads",
+            is_sensitive=False,
+            active_value="8",  # Already matches desired
+            dynamic_value=None,
+            dynamic_default_value=None,
+            static_value="8",
+            default_value="8",
+        ),
+        Config(
+            config_name="background.threads",
+            is_sensitive=False,
+            active_value="20",
+            dynamic_value="20",
+            dynamic_default_value=None,
+            static_value=None,
+            default_value="10",
+        ),
+    ]
+
+    mock_apply_configs.return_value = ([], [])
+    mock_remove_configs.return_value = ([], [])
+
+    success, errors = update_config_state(
+        mock_admin_client,
+        temp_record_dir,
+        temp_properties_file,
+        dry_run=True,
+    )
+
+    assert len(success) == 0
+    assert len(errors) == 0
+
+    mock_apply_configs.assert_not_called()
     mock_remove_configs.assert_not_called()

@@ -61,6 +61,10 @@ def update_config_state(
         if config_name in emergency_configs:
             continue
 
+        if config_name not in kafka_configs:
+            configs_to_apply[config_name] = desired_value
+            continue
+
         active_config = kafka_configs[config_name]
         if active_config.active_value != desired_value:
             configs_to_apply[config_name] = desired_value
