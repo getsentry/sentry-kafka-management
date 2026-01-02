@@ -1,6 +1,8 @@
 import tempfile
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Generator
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
@@ -61,3 +63,24 @@ def temp_config() -> Generator[Path, None, None]:
 
     # Cleanup
     temp_path.unlink()
+
+
+@pytest.fixture
+def mock_admin_client() -> MagicMock:
+    """Create a mock AdminClient."""
+    return MagicMock()
+
+
+@pytest.fixture
+def temp_record_dir() -> Generator[Path, None, None]:
+    """Create a temporary directory for emergency configs."""
+    with TemporaryDirectory() as tmpdir:
+        yield Path(tmpdir)
+
+
+@pytest.fixture
+def temp_properties_file() -> Generator[Path, None, None]:
+    """Create a temporary server.properties file with a broker.id."""
+    with TemporaryDirectory() as tmpdir:
+        props_file = Path(tmpdir) / "server.properties"
+        yield props_file
