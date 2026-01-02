@@ -47,6 +47,7 @@ def update_config_state(
     emergency_configs = read_record_dir(record_dir)
 
     properties_configs = read_server_properties(properties_file)
+    # TODO: use node.id if we move to KRaft
     broker_id = int(properties_configs["broker.id"])
 
     kafka_configs_list: list[Config] = get_active_broker_configs(broker_id)
