@@ -1,3 +1,15 @@
+## 0.0.11
+
+### New Features ✨
+
+- (kafka_cli) Add local action for parsing kafka-configs output by @bmckerry in [#44](https://github.com/getsentry/sentry-kafka-management/pull/44)
+- Add action to apply desired config changes by @lvthanh03 in [#45](https://github.com/getsentry/sentry-kafka-management/pull/45)
+- Add local action to parse Kafka server properties file by @lvthanh03 in [#43](https://github.com/getsentry/sentry-kafka-management/pull/43)
+
+### Bug Fixes 🐛
+
+- (kafka_cli) Fix the parse_line regex to allow caps in values by @bmckerry in [#46](https://github.com/getsentry/sentry-kafka-management/pull/46)
+
 ## 0.0.10
 
 ### New Features ✨
