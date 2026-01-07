@@ -1,3 +1,9 @@
+## 0.0.12
+
+### New Features ✨
+
+- (kafka-configs) Supports SASL authentication in update-config-state by @lvthanh03 in [#47](https://github.com/getsentry/sentry-kafka-management/pull/47)
+
 ## 0.0.11
 
 ### New Features ✨
