@@ -41,6 +41,13 @@ from sentry_kafka_management.scripts.config_helpers import get_cluster_config
     help="Path to the Kafka server.properties file",
 )
 @click.option(
+    "-s",
+    "--sasl-credentials-file",
+    type=click.Path(exists=True, path_type=Path),
+    required=False,
+    help="Path to the SASL credentials file",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     help="Whether to dry run the config changes, only performs validation",
@@ -50,6 +57,7 @@ def update_config_state(
     cluster: str,
     record_dir: Path,
     properties_file: Path,
+    sasl_credentials_file: Path | None = None,
     dry_run: bool = False,
 ) -> None:
     """
@@ -67,7 +75,8 @@ def update_config_state(
     Usage:
         kafka-scripts apply-desired-configs -c config.yml -n my-cluster \\
             --record-dir /emergency-configs \\
-            --properties-file /etc/kafka/server.properties
+            --properties-file /etc/kafka/server.properties \\
+            --sasl-credentials-file /path/to/client.properties
     """
     cluster_config = get_cluster_config(config, cluster)
     client = get_admin_client(cluster_config)
@@ -76,7 +85,8 @@ def update_config_state(
         client,
         record_dir,
         properties_file,
-        dry_run,
+        sasl_credentials_file=sasl_credentials_file,
+        dry_run=dry_run,
     )
 
     if success:
