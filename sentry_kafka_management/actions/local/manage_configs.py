@@ -21,6 +21,7 @@ def update_config_state(
     admin_client: AdminClient,
     record_dir: Path,
     properties_file: Path,
+    sasl_credentials_file: Path | None = None,
     dry_run: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
@@ -50,7 +51,9 @@ def update_config_state(
     # TODO: use node.id if we move to KRaft
     broker_id = int(properties_configs["broker.id"])
 
-    kafka_configs_list: list[Config] = get_active_broker_configs(broker_id)
+    kafka_configs_list: list[Config] = get_active_broker_configs(
+        broker_id, sasl_credentials_file=sasl_credentials_file
+    )
     kafka_configs: dict[str, Config] = {config.config_name: config for config in kafka_configs_list}
 
     configs_to_apply: dict[str, str] = {}

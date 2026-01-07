@@ -3,6 +3,7 @@ import re
 import subprocess
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import Sequence
 
 
@@ -105,7 +106,11 @@ def _str_to_dict(dictstr: str) -> dict[str, str]:
     return res
 
 
-def _run_kafka_configs_describe(broker_id: int, bootstrap_server: str) -> list[str]:
+def _run_kafka_configs_describe(
+    broker_id: int,
+    bootstrap_server: str,
+    sasl_credentials_file: Path | None = None,
+) -> list[str]:
     """
     Runs `kafka-configs --entity-type brokers --describe --all` against
     the given broker and returns the output as a list of lines.
@@ -130,6 +135,8 @@ def _run_kafka_configs_describe(broker_id: int, bootstrap_server: str) -> list[s
         "--describe",
         "--all",
     ]
+    if sasl_credentials_file is not None:
+        command.extend(["--command-config", str(sasl_credentials_file)])
     res = subprocess.run(command, capture_output=True, text=True)
     try:
         res.check_returncode()
@@ -179,7 +186,9 @@ def _parse_output(lines: Sequence[str]) -> list[Config]:
 
 
 def get_active_broker_configs(
-    broker_id: int, bootstrap_servers: str = "localhost:9092"
+    broker_id: int,
+    bootstrap_servers: str = "localhost:9092",
+    sasl_credentials_file: Path | None = None,
 ) -> list[Config]:
     """
     Runs `kafka-configs --entity-type brokers --describe --all` against
@@ -192,6 +201,8 @@ def get_active_broker_configs(
     the static value that Kafka has stored for a config even if that config has
     a dynamic value set.
     """
-    kafka_configs_lines = _run_kafka_configs_describe(broker_id, bootstrap_servers)
+    kafka_configs_lines = _run_kafka_configs_describe(
+        broker_id, bootstrap_servers, sasl_credentials_file
+    )
     configs = _parse_output(kafka_configs_lines)
     return configs

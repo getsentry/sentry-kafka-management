@@ -84,3 +84,11 @@ def temp_properties_file() -> Generator[Path, None, None]:
     with TemporaryDirectory() as tmpdir:
         props_file = Path(tmpdir) / "server.properties"
         yield props_file
+
+
+@pytest.fixture
+def temp_sasl_credentials_file() -> Generator[Path, None, None]:
+    """Create a temporary SASL credentials file."""
+    with TemporaryDirectory() as tmpdir:
+        sasl_file = Path(tmpdir) / "client.properties"
+        yield sasl_file

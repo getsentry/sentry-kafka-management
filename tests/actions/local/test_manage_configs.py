@@ -317,3 +317,34 @@ def test_update_config_state_no_op_when_active_matches_desired(
 
     mock_apply_configs.assert_not_called()
     mock_remove_configs.assert_not_called()
+
+
+@patch("sentry_kafka_management.actions.local.manage_configs.remove_dynamic_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.apply_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.get_active_broker_configs")
+def test_update_config_state_passes_sasl_credentials_file(
+    mock_get_configs: MagicMock,
+    mock_apply_configs: MagicMock,
+    mock_remove_configs: MagicMock,
+    mock_admin_client: MagicMock,
+    temp_record_dir: Path,
+    temp_properties_file: Path,
+    temp_sasl_credentials_file: Path,
+) -> None:
+    """Test that sasl_credentials_file is correctly passed to get_active_broker_configs."""
+    temp_properties_file.write_text("broker.id=1001\n")
+
+    mock_get_configs.return_value = [broker_id_config()]
+    mock_apply_configs.return_value = ([], [])
+    mock_remove_configs.return_value = ([], [])
+
+    update_config_state(
+        mock_admin_client,
+        temp_record_dir,
+        temp_properties_file,
+        sasl_credentials_file=temp_sasl_credentials_file,
+        dry_run=True,
+    )
+
+    # Verify get_active_broker_configs was called with the sasl_credentials_file
+    mock_get_configs.assert_called_once_with(1001, sasl_credentials_file=temp_sasl_credentials_file)
