@@ -300,7 +300,7 @@ wheels = [
 
 [[package]]
 name = "sentry-kafka-management"
-version = "0.0.12"
+version = "0.0.13"
 source = { editable = "." }
 dependencies = [
     { name = "click", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
