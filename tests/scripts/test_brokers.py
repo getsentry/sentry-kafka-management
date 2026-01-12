@@ -61,9 +61,10 @@ def test_apply_config_command_success() -> None:
                     {
                         "broker_id": "0",
                         "config_name": "message.max.bytes",
+                        "op": "apply",
                         "status": "success",
-                        "old_value": "1000000",
-                        "new_value": "2000000",
+                        "from_value": "1000000",
+                        "to_value": "2000000",
                     }
                 ],
                 [],
@@ -157,9 +158,10 @@ def test_remove_config_command_success() -> None:
                     {
                         "broker_id": "0",
                         "config_name": "message.max.bytes",
+                        "op": "remove",
                         "status": "success",
-                        "old_value": "1000000",
-                        "new_value": None,
+                        "from_value": "1000000",
+                        "to_value": None,
                     }
                 ],
                 [],

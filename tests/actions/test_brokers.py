@@ -73,8 +73,9 @@ def test_update_config_apply() -> None:
         ConfigChange(
             broker_id="0",
             config_name="message.max.bytes",
-            old_value="1000000",
-            new_value="2000000",
+            op="apply",
+            from_value="1000000",
+            to_value="2000000",
         )
     ]
     with TemporaryDirectory() as tmpdir:
@@ -91,8 +92,8 @@ def test_update_config_apply() -> None:
         assert success[0]["status"] == "success"
         assert success[0]["broker_id"] == "0"
         assert success[0]["config_name"] == "message.max.bytes"
-        assert success[0]["old_value"] == "1000000"
-        assert success[0]["new_value"] == "2000000"
+        assert success[0]["from_value"] == "1000000"
+        assert success[0]["to_value"] == "2000000"
         assert len(list(dir_path.iterdir())) == 1
         mock_client.incremental_alter_configs.assert_called_once()
 
@@ -131,8 +132,9 @@ def test_apply_configs_success() -> None:
                 ConfigChange(
                     broker_id="0",
                     config_name="message.max.bytes",
-                    old_value="1000000",
-                    new_value="2000000",
+                    op="apply",
+                    from_value="1000000",
+                    to_value="2000000",
                 )
             ],
             update_type=AlterConfigOpType.SET,
@@ -167,8 +169,9 @@ def test_apply_config_allowlist(
             ConfigChange(
                 broker_id="0",
                 config_name="leader.replication.throttled.rate",
-                old_value=None,
-                new_value="100000",
+                op="apply",
+                from_value=None,
+                to_value="100000",
             )
         ],
         update_type=AlterConfigOpType.SET,
@@ -248,8 +251,9 @@ def test_remove_dynamic_configs_success() -> None:
                 ConfigChange(
                     broker_id="0",
                     config_name="message.max.bytes",
-                    old_value="1000000",
-                    new_value=None,
+                    op="remove",
+                    from_value="1000000",
+                    to_value=None,
                 )
             ],
             update_type=AlterConfigOpType.DELETE,
@@ -355,6 +359,6 @@ def test_apply_configs_dry_run(
     assert isinstance(success[0], dict)
     assert success[0]["broker_id"] == "0"
     assert success[0]["config_name"] == "message.max.bytes"
-    assert success[0]["old_value"] == "1000000"
-    assert success[0]["new_value"] == "2000000"
+    assert success[0]["from_value"] == "1000000"
+    assert success[0]["to_value"] == "2000000"
     assert success[0]["status"] == "success"
