@@ -22,7 +22,7 @@ jobs:
           - registry: multi-region
             image: us-docker.pkg.dev/sentryio/sentry-kafka-management-mr/image
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v3 # v3
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v3
       - uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
         with:
           image_name: 'sentry-kafka-management'
