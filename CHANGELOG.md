@@ -1,3 +1,9 @@
+## 0.0.13
+
+### New Features ✨
+
+- (update-configs) Improvements to config change output by @lvthanh03 in [#49](https://github.com/getsentry/sentry-kafka-management/pull/49)
+
 ## 0.0.12
 
 ### New Features ✨
