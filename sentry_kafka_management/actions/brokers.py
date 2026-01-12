@@ -18,25 +18,30 @@ from sentry_kafka_management.actions.local.filesystem import record_config
 @dataclass
 class ConfigChange:
     broker_id: str
-    config_name: str | None = None
-    old_value: str | None = None
-    new_value: str | None = None
+    config_name: str
+    op: str
+    from_value: str | None = None
+    to_value: str | None = None
 
     def to_success(self) -> dict[str, Any]:
         return {
             "broker_id": self.broker_id,
             "config_name": self.config_name,
+            "op": self.op,
             "status": "success",
-            "old_value": self.old_value,
-            "new_value": self.new_value,
+            "from_value": self.from_value,
+            "to_value": self.to_value,
         }
 
     def to_error(self, error_message: str) -> dict[str, Any]:
         return {
             "broker_id": self.broker_id,
             "config_name": self.config_name,
+            "op": self.op,
             "status": "error",
             "error": error_message,
+            "from_value": self.from_value,
+            "to_value": self.to_value,
         }
 
 
@@ -118,7 +123,7 @@ def _update_configs(
         broker_id = config_change.broker_id
         config_entry = ConfigEntry(
             name=config_change.config_name,
-            value=config_change.new_value,
+            value=config_change.to_value,
             incremental_operation=update_type,
         )
         config_resource = ConfigResource(
@@ -137,10 +142,10 @@ def _update_configs(
             try:
                 future.result(timeout=KAFKA_TIMEOUT)
                 # record the applied value, if we applied a new value and it succeeded
-                if configs_record_dir and config_change.config_name and config_change.new_value:
+                if configs_record_dir and config_change.config_name and config_change.to_value:
                     record_config(
                         config_change.config_name,
-                        config_change.new_value,
+                        config_change.to_value,
                         configs_record_dir,
                     )
                 success.append(config_change.to_success())
@@ -169,8 +174,8 @@ def apply_configs(
 
     Returns:
         List of dictionaries with operation details for each config change.
-        Each dict contains: `broker_id`, `config_name`, `status`, and either the pair \
-        `old_value`, `new_value` if successful or an `error` if unsuccessful.
+        Each dict contains: `broker_id`, `config_name`, `op`, `status`, `from_value`, \
+        `to_value`, and `error` if unsuccessful.
     """
     if broker_ids is None:
         broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
@@ -187,10 +192,19 @@ def apply_configs(
                 config_name,
                 broker_id,
             )
+            from_value = current_config["value"] if current_config else None
             # broker and config basic validation
             validate = basic_validation(broker_id, valid_broker_ids, config_name, current_config)
             if validate:
-                validation_errors.append(ConfigChange(broker_id, config_name).to_error(validate))
+                validation_errors.append(
+                    ConfigChange(
+                        broker_id=broker_id,
+                        config_name=config_name,
+                        op="apply",
+                        from_value=from_value,
+                        to_value=new_value,
+                    ).to_error(validate)
+                )
                 continue
             if current_config is None:
                 # Config doesn't exist on broker yet, but is in ALLOWED_CONFIGS.
@@ -203,17 +217,22 @@ def apply_configs(
                 }
             if current_config["isReadOnly"]:
                 validation_errors.append(
-                    ConfigChange(broker_id, config_name).to_error(
-                        f"Config '{config_name}' is read-only on broker {broker_id}"
-                    )
+                    ConfigChange(
+                        broker_id=broker_id,
+                        config_name=config_name,
+                        op="apply",
+                        from_value=from_value,
+                        to_value=new_value,
+                    ).to_error(f"Config '{config_name}' is read-only on broker {broker_id}")
                 )
                 continue
             config_change_list.append(
                 ConfigChange(
                     broker_id=broker_id,
                     config_name=config_name,
-                    old_value=current_config["value"],
-                    new_value=new_value,
+                    op="apply",
+                    from_value=current_config["value"],
+                    to_value=new_value,
                 )
             )
 
@@ -250,9 +269,8 @@ def remove_dynamic_configs(
 
     Returns:
         List of dictionaries with details on each config change.
-        Each dict contains: `broker_id`, `config_name`, `status`, `old_value`, and either
-        a `new_value` (which will be `None`) or an `error`.
-        If the status is "error", `error` will be a string describing the error.
+        Each dict contains: `broker_id`, `config_name`, `op`, `status`, `from_value`, \
+        `to_value` (which will be `None` for remove operations), and `error` if unsuccessful.
     """
     if broker_ids is None:
         broker_ids = [broker["id"] for broker in describe_cluster(admin_client)]
@@ -269,22 +287,41 @@ def remove_dynamic_configs(
                 config_name,
                 broker_id,
             )
+            from_value = current_config["value"] if current_config else None
             # broker and config basic validation
             validate = basic_validation(broker_id, valid_broker_ids, config_name, current_config)
             if validate:
-                validation_errors.append(ConfigChange(broker_id, config_name).to_error(validate))
+                validation_errors.append(
+                    ConfigChange(
+                        broker_id=broker_id,
+                        config_name=config_name,
+                        op="remove",
+                        from_value=from_value,
+                        to_value=None,
+                    ).to_error(validate)
+                )
                 continue
             if current_config is None:
                 # Config doesn't exist on broker so we can't remove it.
                 validation_errors.append(
-                    ConfigChange(broker_id, config_name).to_error(
-                        f"Config '{config_name}' not found on broker {broker_id}"
-                    )
+                    ConfigChange(
+                        broker_id=broker_id,
+                        config_name=config_name,
+                        op="remove",
+                        from_value=None,
+                        to_value=None,
+                    ).to_error(f"Config '{config_name}' not found on broker {broker_id}")
                 )
                 continue
             if current_config["source"] != ConfigSource.DYNAMIC_BROKER_CONFIG.name:
                 validation_errors.append(
-                    ConfigChange(broker_id, config_name).to_error(
+                    ConfigChange(
+                        broker_id=broker_id,
+                        config_name=config_name,
+                        op="remove",
+                        from_value=from_value,
+                        to_value=None,
+                    ).to_error(
                         f"Config '{config_name}' is not set dynamically on broker {broker_id}"
                     )
                 )
@@ -293,8 +330,9 @@ def remove_dynamic_configs(
                 ConfigChange(
                     broker_id=broker_id,
                     config_name=config_name,
-                    old_value=current_config["value"],
-                    new_value=None,
+                    op="remove",
+                    from_value=current_config["value"],
+                    to_value=None,
                 )
             )
 

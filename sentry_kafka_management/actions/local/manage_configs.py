@@ -59,6 +59,11 @@ def update_config_state(
     configs_to_apply: dict[str, str] = {}
 
     for config_name, config_value in emergency_configs.items():
+        # Skip if dynamic value already matches the emergency config
+        if config_name in kafka_configs:
+            active_config = kafka_configs[config_name]
+            if active_config.dynamic_value == config_value:
+                continue
         configs_to_apply[config_name] = config_value
 
     for config_name, desired_value in properties_configs.items():

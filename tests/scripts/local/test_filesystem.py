@@ -40,9 +40,10 @@ def test_remove_recorded_config_command() -> None:
                     {
                         "broker_id": "0",
                         "config_name": "message.max.bytes",
+                        "op": "remove",
                         "status": "success",
-                        "old_value": "1000000",
-                        "new_value": None,
+                        "from_value": "1000000",
+                        "to_value": None,
                     }
                 ],
                 [],
