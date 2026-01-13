@@ -26,6 +26,7 @@ def test_describe_broker_configs() -> None:
             "source": "DYNAMIC_BROKER_CONFIG",
             "isDefault": True,
             "isReadOnly": False,
+            "isSensitive": False,
             "broker": "0",
         },
     ]
@@ -41,6 +42,7 @@ def test_describe_broker_configs() -> None:
     conf_value_mock.value = "3"
     conf_value_mock.is_default = True
     conf_value_mock.is_read_only = False
+    conf_value_mock.is_sensitive = False
     conf_value_mock.source = ConfigSource.DYNAMIC_BROKER_CONFIG
 
     # mocking the config returned by describe_configs
@@ -362,3 +364,46 @@ def test_apply_configs_dry_run(
     assert success[0]["from_value"] == "1000000"
     assert success[0]["to_value"] == "2000000"
     assert success[0]["status"] == "success"
+
+
+def test_config_change_redacts_sensitive_values() -> None:
+    """Test that ConfigChange redacts sensitive values in to_success() and to_error()."""
+    # Non-sensitive config
+    non_sensitive = ConfigChange(
+        broker_id="0",
+        config_name="message.max.bytes",
+        op="apply",
+        from_value="1000000",
+        to_value="2000000",
+        is_sensitive=False,
+    )
+
+    success = non_sensitive.to_success()
+    assert success["from_value"] == "1000000"
+    assert success["to_value"] == "2000000"
+
+    error = non_sensitive.to_error("test error")
+    assert error["from_value"] == "1000000"
+    assert error["to_value"] == "2000000"
+
+    # Sensitive config
+    sensitive = ConfigChange(
+        broker_id="0",
+        config_name="jaas.config",
+        op="apply",
+        from_value="old_password",
+        to_value="new_password",
+        is_sensitive=True,
+    )
+
+    success = sensitive.to_success()
+    assert success["from_value"] is None
+    assert success["to_value"] is None
+    assert success["config_name"] == "jaas.config"
+    assert success["status"] == "success"
+
+    error = sensitive.to_error("test error")
+    assert error["from_value"] is None
+    assert error["to_value"] is None
+    assert error["config_name"] == "jaas.config"
+    assert error["error"] == "test error"

@@ -62,7 +62,13 @@ def update_config_state(
         # Skip if dynamic value already matches the emergency config
         if config_name in kafka_configs:
             active_config = kafka_configs[config_name]
-            if active_config.dynamic_value == config_value:
+            # For sensitive configs, we can't reliably compare values (they're masked),
+            # so always apply them
+            if (
+                not active_config.is_sensitive
+                and active_config.dynamic_value is not None
+                and active_config.dynamic_value == config_value
+            ):
                 continue
         configs_to_apply[config_name] = config_value
 
@@ -79,13 +85,16 @@ def update_config_state(
         # If there's a dynamic value set, but the static value matches the desired value,
         # we should remove the dynamic config instead of applying a new value
         if (
-            active_config.dynamic_value is not None
+            not active_config.is_sensitive
+            and active_config.dynamic_value is not None
             and active_config.static_value is not None
             and active_config.static_value == desired_value
         ):
             continue
 
-        if active_config.active_value != desired_value:
+        # For sensitive configs, always apply since we can't compare masked values
+        # For non-sensitive configs, only apply if values differ
+        if active_config.is_sensitive or active_config.active_value != desired_value:
             configs_to_apply[config_name] = desired_value
 
     configs_to_remove: list[str] = []
@@ -98,6 +107,11 @@ def update_config_state(
             continue
 
         if config_name not in properties_configs:
+            continue
+
+        # For sensitive configs, we can't reliably compare values (they're masked),
+        # so skip removal logic
+        if active_config.is_sensitive:
             continue
 
         desired_value = properties_configs[config_name]
