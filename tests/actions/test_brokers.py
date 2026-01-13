@@ -120,6 +120,7 @@ def test_apply_configs_success() -> None:
                 "source": "STATIC_BROKER_CONFIG",
                 "isDefault": False,
                 "isReadOnly": False,
+                "isSensitive": False,
                 "broker": "0",
             }
         ]
@@ -204,6 +205,7 @@ def test_apply_config_validation() -> None:
                 "source": "STATIC_BROKER_CONFIG",
                 "isDefault": False,
                 "isReadOnly": True,  # Read-only!
+                "isSensitive": False,
                 "broker": "0",
             }
         ]
@@ -240,6 +242,7 @@ def test_remove_dynamic_configs_success() -> None:
                 "source": "DYNAMIC_BROKER_CONFIG",
                 "isDefault": False,
                 "isReadOnly": False,
+                "isSensitive": False,
                 "broker": "0",
             }
         ]
@@ -285,6 +288,7 @@ def test_remove_dynamic_configs_validation() -> None:
                 "source": "STATIC_BROKER_CONFIG",  # Not dynamic!
                 "isDefault": False,
                 "isReadOnly": False,
+                "isSensitive": False,
                 "broker": "0",
             }
         ]
@@ -342,6 +346,7 @@ def test_apply_configs_dry_run(
             "source": "STATIC_BROKER_CONFIG",
             "isDefault": False,
             "isReadOnly": False,
+            "isSensitive": False,
             "broker": "0",
         }
     ]
@@ -397,13 +402,33 @@ def test_config_change_redacts_sensitive_values() -> None:
     )
 
     success = sensitive.to_success()
-    assert success["from_value"] is None
-    assert success["to_value"] is None
+    assert success["from_value"] == "*****"
+    assert success["to_value"] == "*****"
     assert success["config_name"] == "jaas.config"
     assert success["status"] == "success"
 
     error = sensitive.to_error("test error")
-    assert error["from_value"] is None
-    assert error["to_value"] is None
+    assert error["from_value"] == "*****"
+    assert error["to_value"] == "*****"
     assert error["config_name"] == "jaas.config"
     assert error["error"] == "test error"
+
+
+def test_is_likely_sensitive() -> None:
+    """Test that is_likely_sensitive correctly identifies potentially sensitive configs."""
+    from sentry_kafka_management.actions.brokers import is_likely_sensitive
+
+    # Should detect as sensitive
+    assert is_likely_sensitive("ssl.keystore.password") is True
+    assert is_likely_sensitive("ssl.truststore.password") is True
+    assert is_likely_sensitive("sasl.jaas.config") is True
+    assert is_likely_sensitive("ssl.key.password") is True
+    assert is_likely_sensitive("consumer.sasl.mechanism") is True
+    assert is_likely_sensitive("my.secret.value") is True
+    assert is_likely_sensitive("listener.name.internal.scram-sha-256.sasl.jaas.config") is True
+
+    # Should NOT detect as sensitive
+    assert is_likely_sensitive("message.max.bytes") is False
+    assert is_likely_sensitive("num.network.threads") is False
+    assert is_likely_sensitive("log.retention.hours") is False
+    assert is_likely_sensitive("compression.type") is False

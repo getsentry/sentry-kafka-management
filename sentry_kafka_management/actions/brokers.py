@@ -28,21 +28,23 @@ class ConfigChange:
         return {
             "broker_id": self.broker_id,
             "config_name": self.config_name,
+            "is_sensitive": self.is_sensitive,
             "op": self.op,
             "status": "success",
-            "from_value": None if self.is_sensitive else self.from_value,
-            "to_value": None if self.is_sensitive else self.to_value,
+            "from_value": "*****" if self.is_sensitive else self.from_value,
+            "to_value": "*****" if self.is_sensitive else self.to_value,
         }
 
     def to_error(self, error_message: str) -> dict[str, Any]:
         return {
             "broker_id": self.broker_id,
             "config_name": self.config_name,
+            "is_sensitive": self.is_sensitive,
             "op": self.op,
             "status": "error",
             "error": error_message,
-            "from_value": None if self.is_sensitive else self.from_value,
-            "to_value": None if self.is_sensitive else self.to_value,
+            "from_value": "*****" if self.is_sensitive else self.from_value,
+            "to_value": "*****" if self.is_sensitive else self.to_value,
         }
 
 
@@ -194,8 +196,13 @@ def apply_configs(
                 config_name,
                 broker_id,
             )
-            from_value = current_config["value"] if current_config else None
-            is_sensitive = current_config.get("isSensitive", False) if current_config else False
+            if current_config:
+                from_value = current_config["value"]
+                is_sensitive = current_config["isSensitive"]
+            else:
+                from_value = None
+                is_sensitive = is_likely_sensitive(config_name)
+
             # broker and config basic validation
             validate = basic_validation(broker_id, valid_broker_ids, config_name, current_config)
             if validate:
@@ -217,7 +224,7 @@ def apply_configs(
                     "config": config_name,
                     "value": None,
                     "isReadOnly": False,
-                    "isSensitive": False,
+                    "isSensitive": is_sensitive,
                     "broker": broker_id,
                 }
             if current_config["isReadOnly"]:
@@ -294,8 +301,13 @@ def remove_dynamic_configs(
                 config_name,
                 broker_id,
             )
-            from_value = current_config["value"] if current_config else None
-            is_sensitive = current_config.get("isSensitive", False) if current_config else False
+            if current_config:
+                from_value = current_config["value"]
+                is_sensitive = current_config["isSensitive"]
+            else:
+                from_value = None
+                is_sensitive = is_likely_sensitive(config_name)
+
             # broker and config basic validation
             validate = basic_validation(broker_id, valid_broker_ids, config_name, current_config)
             if validate:
@@ -319,7 +331,7 @@ def remove_dynamic_configs(
                         op="remove",
                         from_value=None,
                         to_value=None,
-                        is_sensitive=False,
+                        is_sensitive=is_sensitive,
                     ).to_error(f"Config '{config_name}' not found on broker {broker_id}")
                 )
                 continue
@@ -382,3 +394,22 @@ def basic_validation(
             "ALLOWED_CONFIGS in sentry_kafka_management/actions/conf.py"
         )
     return None
+
+
+def is_likely_sensitive(config_name: str) -> bool:
+    """
+    Determines if a config is likely to be sensitive.
+    """
+    sensitive_patterns = [
+        "password",
+        "secret",
+        "key",
+        "token",
+        "credential",
+        "truststore",
+        "keystore",
+        "sasl",
+        "ssl",
+        "jaas",
+    ]
+    return any(pattern in config_name.lower() for pattern in sensitive_patterns)
