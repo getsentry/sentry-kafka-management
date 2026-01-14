@@ -1,3 +1,9 @@
+## 0.0.14
+
+### New Features ✨
+
+- Mask sensitive values in ConfigChange result by @lvthanh03 in [#50](https://github.com/getsentry/sentry-kafka-management/pull/50)
+
 ## 0.0.13
 
 ### New Features ✨
