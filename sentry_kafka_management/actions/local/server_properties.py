@@ -47,7 +47,8 @@ def read_server_properties(properties_file: Path) -> dict[str, str]:
             if key:
                 configs[key] = value
         else:
-            print(f"Warning: Skipping malformed line {i + 1}: {line}")
+            # Don't print the full line as it may contain sensitive values
+            print(f"Warning: Skipping malformed line {i + 1} (expected format: key=value)")
 
         i += 1
 

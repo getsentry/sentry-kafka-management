@@ -26,6 +26,7 @@ def test_describe_broker_configs() -> None:
             "source": "DYNAMIC_BROKER_CONFIG",
             "isDefault": True,
             "isReadOnly": False,
+            "isSensitive": False,
             "broker": "0",
         },
     ]
@@ -41,6 +42,7 @@ def test_describe_broker_configs() -> None:
     conf_value_mock.value = "3"
     conf_value_mock.is_default = True
     conf_value_mock.is_read_only = False
+    conf_value_mock.is_sensitive = False
     conf_value_mock.source = ConfigSource.DYNAMIC_BROKER_CONFIG
 
     # mocking the config returned by describe_configs
@@ -118,6 +120,7 @@ def test_apply_configs_success() -> None:
                 "source": "STATIC_BROKER_CONFIG",
                 "isDefault": False,
                 "isReadOnly": False,
+                "isSensitive": False,
                 "broker": "0",
             }
         ]
@@ -202,6 +205,7 @@ def test_apply_config_validation() -> None:
                 "source": "STATIC_BROKER_CONFIG",
                 "isDefault": False,
                 "isReadOnly": True,  # Read-only!
+                "isSensitive": False,
                 "broker": "0",
             }
         ]
@@ -238,6 +242,7 @@ def test_remove_dynamic_configs_success() -> None:
                 "source": "DYNAMIC_BROKER_CONFIG",
                 "isDefault": False,
                 "isReadOnly": False,
+                "isSensitive": False,
                 "broker": "0",
             }
         ]
@@ -283,6 +288,7 @@ def test_remove_dynamic_configs_validation() -> None:
                 "source": "STATIC_BROKER_CONFIG",  # Not dynamic!
                 "isDefault": False,
                 "isReadOnly": False,
+                "isSensitive": False,
                 "broker": "0",
             }
         ]
@@ -340,6 +346,7 @@ def test_apply_configs_dry_run(
             "source": "STATIC_BROKER_CONFIG",
             "isDefault": False,
             "isReadOnly": False,
+            "isSensitive": False,
             "broker": "0",
         }
     ]
@@ -362,3 +369,66 @@ def test_apply_configs_dry_run(
     assert success[0]["from_value"] == "1000000"
     assert success[0]["to_value"] == "2000000"
     assert success[0]["status"] == "success"
+
+
+def test_config_change_redacts_sensitive_values() -> None:
+    """Test that ConfigChange redacts sensitive values in to_success() and to_error()."""
+    # Non-sensitive config
+    non_sensitive = ConfigChange(
+        broker_id="0",
+        config_name="message.max.bytes",
+        op="apply",
+        from_value="1000000",
+        to_value="2000000",
+        is_sensitive=False,
+    )
+
+    success = non_sensitive.to_success()
+    assert success["from_value"] == "1000000"
+    assert success["to_value"] == "2000000"
+
+    error = non_sensitive.to_error("test error")
+    assert error["from_value"] == "1000000"
+    assert error["to_value"] == "2000000"
+
+    # Sensitive config
+    sensitive = ConfigChange(
+        broker_id="0",
+        config_name="jaas.config",
+        op="apply",
+        from_value="old_password",
+        to_value="new_password",
+        is_sensitive=True,
+    )
+
+    success = sensitive.to_success()
+    assert success["from_value"] == "*****"
+    assert success["to_value"] == "*****"
+    assert success["config_name"] == "jaas.config"
+    assert success["status"] == "success"
+
+    error = sensitive.to_error("test error")
+    assert error["from_value"] == "*****"
+    assert error["to_value"] == "*****"
+    assert error["config_name"] == "jaas.config"
+    assert error["error"] == "test error"
+
+
+def test_is_likely_sensitive() -> None:
+    """Test that is_likely_sensitive correctly identifies potentially sensitive configs."""
+    from sentry_kafka_management.actions.brokers import is_likely_sensitive
+
+    # Should detect as sensitive
+    assert is_likely_sensitive("ssl.keystore.password") is True
+    assert is_likely_sensitive("ssl.truststore.password") is True
+    assert is_likely_sensitive("sasl.jaas.config") is True
+    assert is_likely_sensitive("ssl.key.password") is True
+    assert is_likely_sensitive("consumer.sasl.mechanism") is True
+    assert is_likely_sensitive("my.secret.value") is True
+    assert is_likely_sensitive("listener.name.internal.scram-sha-256.sasl.jaas.config") is True
+
+    # Should NOT detect as sensitive
+    assert is_likely_sensitive("message.max.bytes") is False
+    assert is_likely_sensitive("num.network.threads") is False
+    assert is_likely_sensitive("log.retention.hours") is False
+    assert is_likely_sensitive("compression.type") is False
