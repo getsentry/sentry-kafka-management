@@ -75,6 +75,7 @@ def test_update_config_apply() -> None:
         ConfigChange(
             broker_id="0",
             config_name="message.max.bytes",
+            is_sensitive=False,
             op="apply",
             from_value="1000000",
             to_value="2000000",
@@ -96,6 +97,7 @@ def test_update_config_apply() -> None:
         assert success[0]["config_name"] == "message.max.bytes"
         assert success[0]["from_value"] == "1000000"
         assert success[0]["to_value"] == "2000000"
+        assert success[0]["is_sensitive"] is False
         assert len(list(dir_path.iterdir())) == 1
         mock_client.incremental_alter_configs.assert_called_once()
 
@@ -122,12 +124,23 @@ def test_apply_configs_success() -> None:
                 "isReadOnly": False,
                 "isSensitive": False,
                 "broker": "0",
-            }
+            },
+            {
+                "config": "sensitive.config",
+                "value": None,
+                "source": "STATIC_BROKER_CONFIG",
+                "isDefault": False,
+                "isReadOnly": False,
+                "isSensitive": True,
+                "broker": "0",
+            },
         ]
         mock_describe_broker_configs.return_value = current_configs
         mock_describe_cluster.return_value = [{"id": "0"}]
         apply_configs(
-            mock_client, config_changes={"message.max.bytes": "2000000"}, broker_ids=["0"]
+            mock_client,
+            config_changes={"message.max.bytes": "2000000", "sensitive.config": "secret"},
+            broker_ids=["0"],
         )
         mock_update.assert_called_once_with(
             admin_client=mock_client,
@@ -135,10 +148,19 @@ def test_apply_configs_success() -> None:
                 ConfigChange(
                     broker_id="0",
                     config_name="message.max.bytes",
+                    is_sensitive=False,
                     op="apply",
                     from_value="1000000",
                     to_value="2000000",
-                )
+                ),
+                ConfigChange(
+                    broker_id="0",
+                    config_name="sensitive.config",
+                    is_sensitive=True,
+                    op="apply",
+                    from_value=None,
+                    to_value="secret",
+                ),
             ],
             update_type=AlterConfigOpType.SET,
             configs_record_dir=None,
@@ -172,6 +194,7 @@ def test_apply_config_allowlist(
             ConfigChange(
                 broker_id="0",
                 config_name="leader.replication.throttled.rate",
+                is_sensitive=True,  # Unknown configs default to sensitive
                 op="apply",
                 from_value=None,
                 to_value="100000",
@@ -180,6 +203,34 @@ def test_apply_config_allowlist(
         update_type=AlterConfigOpType.SET,
         configs_record_dir=None,
     )
+
+
+def test_apply_config_unknown_not_in_allowlist_redacts_values() -> None:
+    """Test that unknown configs not in allowlist have values redacted in error."""
+    mock_client = Mock()
+
+    with (
+        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+        ) as mock_describe_broker_configs,
+    ):
+        mock_describe_cluster.return_value = [
+            {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
+        ]
+        # Config not present on broker
+        mock_describe_broker_configs.return_value = []
+
+        # Config not in ALLOWED_CONFIGS
+        config_changes = {"my.unknown.config": "secret_value"}
+        success, error = apply_configs(mock_client, config_changes, ["0"])
+
+        assert len(success) == 0
+        assert len(error) == 1
+        assert error[0]["status"] == "error"
+        assert error[0]["is_sensitive"] is True
+        assert error[0]["from_value"] == "*****"
+        assert error[0]["to_value"] == "*****"
 
 
 def test_apply_config_validation() -> None:
@@ -256,6 +307,7 @@ def test_remove_dynamic_configs_success() -> None:
                 ConfigChange(
                     broker_id="0",
                     config_name="message.max.bytes",
+                    is_sensitive=False,
                     op="remove",
                     from_value="1000000",
                     to_value=None,
@@ -377,10 +429,10 @@ def test_config_change_redacts_sensitive_values() -> None:
     non_sensitive = ConfigChange(
         broker_id="0",
         config_name="message.max.bytes",
+        is_sensitive=False,
         op="apply",
         from_value="1000000",
         to_value="2000000",
-        is_sensitive=False,
     )
 
     success = non_sensitive.to_success()
@@ -395,10 +447,10 @@ def test_config_change_redacts_sensitive_values() -> None:
     sensitive = ConfigChange(
         broker_id="0",
         config_name="jaas.config",
+        is_sensitive=True,
         op="apply",
         from_value="old_password",
         to_value="new_password",
-        is_sensitive=True,
     )
 
     success = sensitive.to_success()
@@ -412,23 +464,3 @@ def test_config_change_redacts_sensitive_values() -> None:
     assert error["to_value"] == "*****"
     assert error["config_name"] == "jaas.config"
     assert error["error"] == "test error"
-
-
-def test_is_likely_sensitive() -> None:
-    """Test that is_likely_sensitive correctly identifies potentially sensitive configs."""
-    from sentry_kafka_management.actions.brokers import is_likely_sensitive
-
-    # Should detect as sensitive
-    assert is_likely_sensitive("ssl.keystore.password") is True
-    assert is_likely_sensitive("ssl.truststore.password") is True
-    assert is_likely_sensitive("sasl.jaas.config") is True
-    assert is_likely_sensitive("ssl.key.password") is True
-    assert is_likely_sensitive("consumer.sasl.mechanism") is True
-    assert is_likely_sensitive("my.secret.value") is True
-    assert is_likely_sensitive("listener.name.internal.scram-sha-256.sasl.jaas.config") is True
-
-    # Should NOT detect as sensitive
-    assert is_likely_sensitive("message.max.bytes") is False
-    assert is_likely_sensitive("num.network.threads") is False
-    assert is_likely_sensitive("log.retention.hours") is False
-    assert is_likely_sensitive("compression.type") is False

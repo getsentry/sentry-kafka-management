@@ -19,10 +19,10 @@ from sentry_kafka_management.actions.local.filesystem import record_config
 class ConfigChange:
     broker_id: str
     config_name: str
+    is_sensitive: bool
     op: str
     from_value: str | None = None
     to_value: str | None = None
-    is_sensitive: bool = False
 
     def to_success(self) -> dict[str, Any]:
         return {
@@ -200,8 +200,9 @@ def apply_configs(
                 from_value = current_config["value"]
                 is_sensitive = current_config["isSensitive"]
             else:
+                # Kafka treats unknown configs as sensitive by default
                 from_value = None
-                is_sensitive = is_likely_sensitive(config_name)
+                is_sensitive = True
 
             # broker and config basic validation
             validate = basic_validation(broker_id, valid_broker_ids, config_name, current_config)
@@ -210,10 +211,10 @@ def apply_configs(
                     ConfigChange(
                         broker_id=broker_id,
                         config_name=config_name,
+                        is_sensitive=is_sensitive,
                         op="apply",
                         from_value=from_value,
                         to_value=new_value,
-                        is_sensitive=is_sensitive,
                     ).to_error(validate)
                 )
                 continue
@@ -232,10 +233,10 @@ def apply_configs(
                     ConfigChange(
                         broker_id=broker_id,
                         config_name=config_name,
+                        is_sensitive=is_sensitive,
                         op="apply",
                         from_value=from_value,
                         to_value=new_value,
-                        is_sensitive=is_sensitive,
                     ).to_error(f"Config '{config_name}' is read-only on broker {broker_id}")
                 )
                 continue
@@ -243,10 +244,10 @@ def apply_configs(
                 ConfigChange(
                     broker_id=broker_id,
                     config_name=config_name,
+                    is_sensitive=current_config["isSensitive"],
                     op="apply",
                     from_value=current_config["value"],
                     to_value=new_value,
-                    is_sensitive=current_config.get("isSensitive", False),
                 )
             )
 
@@ -305,8 +306,9 @@ def remove_dynamic_configs(
                 from_value = current_config["value"]
                 is_sensitive = current_config["isSensitive"]
             else:
+                # Kafka treats unknown configs as sensitive by default
                 from_value = None
-                is_sensitive = is_likely_sensitive(config_name)
+                is_sensitive = True
 
             # broker and config basic validation
             validate = basic_validation(broker_id, valid_broker_ids, config_name, current_config)
@@ -315,10 +317,10 @@ def remove_dynamic_configs(
                     ConfigChange(
                         broker_id=broker_id,
                         config_name=config_name,
+                        is_sensitive=is_sensitive,
                         op="remove",
                         from_value=from_value,
                         to_value=None,
-                        is_sensitive=is_sensitive,
                     ).to_error(validate)
                 )
                 continue
@@ -328,10 +330,10 @@ def remove_dynamic_configs(
                     ConfigChange(
                         broker_id=broker_id,
                         config_name=config_name,
+                        is_sensitive=is_sensitive,
                         op="remove",
                         from_value=None,
                         to_value=None,
-                        is_sensitive=is_sensitive,
                     ).to_error(f"Config '{config_name}' not found on broker {broker_id}")
                 )
                 continue
@@ -340,10 +342,10 @@ def remove_dynamic_configs(
                     ConfigChange(
                         broker_id=broker_id,
                         config_name=config_name,
+                        is_sensitive=is_sensitive,
                         op="remove",
                         from_value=from_value,
                         to_value=None,
-                        is_sensitive=is_sensitive,
                     ).to_error(
                         f"Config '{config_name}' is not set dynamically on broker {broker_id}"
                     )
@@ -353,10 +355,10 @@ def remove_dynamic_configs(
                 ConfigChange(
                     broker_id=broker_id,
                     config_name=config_name,
+                    is_sensitive=current_config["isSensitive"],
                     op="remove",
                     from_value=current_config["value"],
                     to_value=None,
-                    is_sensitive=current_config.get("isSensitive", False),
                 )
             )
 
@@ -394,22 +396,3 @@ def basic_validation(
             "ALLOWED_CONFIGS in sentry_kafka_management/actions/conf.py"
         )
     return None
-
-
-def is_likely_sensitive(config_name: str) -> bool:
-    """
-    Determines if a config is likely to be sensitive.
-    """
-    sensitive_patterns = [
-        "password",
-        "secret",
-        "key",
-        "token",
-        "credential",
-        "truststore",
-        "keystore",
-        "sasl",
-        "ssl",
-        "jaas",
-    ]
-    return any(pattern in config_name.lower() for pattern in sensitive_patterns)
