@@ -1,3 +1,9 @@
+## 0.0.15
+
+### New Features ✨
+
+- Treat unknown configs as sensitive by default by @lvthanh03 in [#51](https://github.com/getsentry/sentry-kafka-management/pull/51)
+
 ## 0.0.14
 
 ### New Features ✨
