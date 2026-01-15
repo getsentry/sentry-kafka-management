@@ -205,6 +205,34 @@ def test_apply_config_allowlist(
     )
 
 
+def test_apply_config_unknown_not_in_allowlist_redacts_values() -> None:
+    """Test that unknown configs not in allowlist have values redacted in error."""
+    mock_client = Mock()
+
+    with (
+        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+        ) as mock_describe_broker_configs,
+    ):
+        mock_describe_cluster.return_value = [
+            {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
+        ]
+        # Config not present on broker
+        mock_describe_broker_configs.return_value = []
+
+        # Config not in ALLOWED_CONFIGS
+        config_changes = {"my.unknown.config": "secret_value"}
+        success, error = apply_configs(mock_client, config_changes, ["0"])
+
+        assert len(success) == 0
+        assert len(error) == 1
+        assert error[0]["status"] == "error"
+        assert error[0]["is_sensitive"] is True
+        assert error[0]["from_value"] == "*****"
+        assert error[0]["to_value"] == "*****"
+
+
 def test_apply_config_validation() -> None:
     """Test that applies to read-only configs are rejected."""
     mock_client = Mock()
