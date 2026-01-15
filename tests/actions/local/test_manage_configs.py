@@ -53,6 +53,7 @@ def test_update_config_state_emergency_priority(
             ConfigChange(
                 broker_id="1001",
                 config_name="num.network.threads",
+                is_sensitive=False,
                 op="apply",
                 from_value="3",
                 to_value="1000",
@@ -114,6 +115,7 @@ def test_update_config_state_apply_from_properties(
             ConfigChange(
                 broker_id="1001",
                 config_name="num.io.threads",
+                is_sensitive=False,
                 op="apply",
                 from_value="8",
                 to_value="10",
@@ -121,6 +123,7 @@ def test_update_config_state_apply_from_properties(
             ConfigChange(
                 broker_id="1001",
                 config_name="background.threads",
+                is_sensitive=False,
                 op="apply",
                 from_value=None,
                 to_value="20",
@@ -181,6 +184,7 @@ def test_update_config_state_remove_dynamic_when_static_matches(
             ConfigChange(
                 broker_id="1001",
                 config_name="message.max.bytes",
+                is_sensitive=False,
                 op="remove",
                 from_value="60000000",
                 to_value=None,
@@ -290,6 +294,7 @@ def test_update_config_state_apply_emergency_config_when_dynamic_differs(
             ConfigChange(
                 broker_id="1001",
                 config_name="num.network.threads",
+                is_sensitive=False,
                 op="apply",
                 from_value="500",
                 to_value="1000",
@@ -401,3 +406,70 @@ def test_update_config_state_passes_sasl_credentials_file(
 
     # Verify get_active_broker_configs was called with the sasl_credentials_file
     mock_get_configs.assert_called_once_with(1001, sasl_credentials_file=temp_sasl_credentials_file)
+
+
+@patch("sentry_kafka_management.actions.local.manage_configs.remove_dynamic_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.apply_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.get_active_broker_configs")
+def test_update_config_state_sensitive_values_redacted(
+    mock_get_configs: MagicMock,
+    mock_apply_configs: MagicMock,
+    mock_remove_configs: MagicMock,
+    mock_admin_client: MagicMock,
+    temp_record_dir: Path,
+    temp_properties_file: Path,
+) -> None:
+    """Test that sensitive config values are redacted in the output."""
+    temp_properties_file.write_text(
+        "broker.id=1001\n" "listener.name.internal.plain.sasl.jaas.config=secret_password\n"
+    )
+
+    mock_get_configs.return_value = [
+        broker_id_config(),
+        Config(
+            config_name="listener.name.internal.plain.sasl.jaas.config",
+            is_sensitive=True,
+            active_value="",
+            dynamic_value=None,
+            dynamic_default_value=None,
+            static_value=None,
+            default_value=None,
+        ),
+    ]
+
+    mock_apply_configs.return_value = (
+        [
+            ConfigChange(
+                broker_id="1001",
+                config_name="listener.name.internal.plain.sasl.jaas.config",
+                is_sensitive=True,
+                op="apply",
+                from_value=None,
+                to_value="secret_password",
+            ).to_success()
+        ],
+        [],
+    )
+    mock_remove_configs.return_value = ([], [])
+
+    success, errors = update_config_state(
+        mock_admin_client,
+        temp_record_dir,
+        temp_properties_file,
+        dry_run=True,
+    )
+
+    assert len(success) == 1
+    assert len(errors) == 0
+
+    mock_apply_configs.assert_called_once_with(
+        mock_admin_client,
+        {"listener.name.internal.plain.sasl.jaas.config": "secret_password"},
+        ["1001"],
+        dry_run=True,
+    )
+
+    assert success[0]["is_sensitive"] is True
+    assert success[0]["from_value"] == "*****"
+    assert success[0]["to_value"] == "*****"
+    assert success[0]["config_name"] == "listener.name.internal.plain.sasl.jaas.config"
