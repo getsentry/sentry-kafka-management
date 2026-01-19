@@ -1,3 +1,13 @@
+## 0.0.16
+
+### Bug Fixes 🐛
+
+- (configs) Don't attempt to apply sensitive values by @bmckerry in [#52](https://github.com/getsentry/sentry-kafka-management/pull/52)
+
+### Build / dependencies / internal 🔧
+
+- (release) Switch from action-prepare-release to Craft by @BYK in [#48](https://github.com/getsentry/sentry-kafka-management/pull/48)
+
 ## 0.0.15
 
 ### New Features ✨
