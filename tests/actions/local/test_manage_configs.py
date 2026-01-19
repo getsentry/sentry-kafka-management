@@ -335,8 +335,15 @@ def test_update_config_state_no_op_when_active_matches_desired(
     temp_record_dir: Path,
     temp_properties_file: Path,
 ) -> None:
-    """Test that no changes are made when active value already matches desired value."""
-    temp_properties_file.write_text("broker.id=1001\n" "num.io.threads=8\n")
+    """
+    Test that no changes are made when active value already matches desired value and
+    dynamic config is still present in either server.properties or emergency configs.
+    """
+    temp_properties_file.write_text(
+        "broker.id=1001\n" "num.io.threads=8\n" "max.connections=1000\n"
+    )
+
+    (temp_record_dir / "background.threads").write_text("20")
 
     mock_get_configs.return_value = [
         broker_id_config(),
@@ -357,6 +364,15 @@ def test_update_config_state_no_op_when_active_matches_desired(
             dynamic_default_value=None,
             static_value=None,
             default_value="10",
+        ),
+        Config(
+            config_name="max.connections",
+            is_sensitive=False,
+            active_value="1000",
+            dynamic_value="1000",
+            dynamic_default_value=None,
+            static_value="500",
+            default_value=None,
         ),
     ]
 
@@ -525,3 +541,96 @@ def test_emergency_update_config_state_sensitive_values(
     assert success[0]["from_value"] == "*****"
     assert success[0]["to_value"] == "*****"
     assert success[0]["config_name"] == "listener.name.internal.plain.sasl.jaas.config"
+
+
+@patch("sentry_kafka_management.actions.local.manage_configs.remove_dynamic_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.apply_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.get_active_broker_configs")
+def test_update_config_state_remove_orphaned_dynamic_config(
+    mock_get_configs: MagicMock,
+    mock_apply_configs: MagicMock,
+    mock_remove_configs: MagicMock,
+    mock_admin_client: MagicMock,
+    temp_record_dir: Path,
+    temp_properties_file: Path,
+) -> None:
+    """
+    Test that orphaned dynamic configs are removed.
+
+    An orphaned dynamic config is one that:
+    - Has a dynamic value set on the broker
+    - Is NOT in emergency_configs (file was deleted)
+    - Is NOT in properties_configs
+
+    This handles the case where an emergency config file is deleted and we want
+    to remove the corresponding dynamic config from the broker.
+    """
+    temp_properties_file.write_text("broker.id=1001\n")
+
+    # Broker has a dynamic config that's not in emergency_configs or properties
+    mock_get_configs.return_value = [
+        broker_id_config(),
+        Config(
+            config_name="leader.replication.throttled.rate",
+            is_sensitive=False,
+            active_value="100000000",
+            dynamic_value="100000000",  # Has a dynamic value
+            dynamic_default_value=None,
+            static_value=None,
+            default_value=None,
+        ),
+        Config(
+            config_name="max.connections",
+            is_sensitive=False,
+            active_value="1000",
+            dynamic_value="1000",
+            dynamic_default_value=None,
+            static_value=None,
+            default_value=None,
+        ),
+    ]
+
+    mock_apply_configs.return_value = ([], [])
+    mock_remove_configs.return_value = (
+        [
+            ConfigChange(
+                broker_id="1001",
+                config_name="leader.replication.throttled.rate",
+                is_sensitive=False,
+                op="remove",
+                from_value="100000000",
+                to_value=None,
+            ).to_success(),
+            ConfigChange(
+                broker_id="1001",
+                config_name="max.connections",
+                is_sensitive=False,
+                op="remove",
+                from_value="1000",
+                to_value=None,
+            ).to_success(),
+        ],
+        [],
+    )
+
+    success, errors = update_config_state(
+        mock_admin_client,
+        temp_record_dir,  # Empty, no emergency configs
+        temp_properties_file,
+        dry_run=True,
+    )
+
+    assert len(success) == 2
+    assert len(errors) == 0
+
+    mock_apply_configs.assert_not_called()
+    mock_remove_configs.assert_called_with(
+        mock_admin_client,
+        ["leader.replication.throttled.rate", "max.connections"],
+        ["1001"],
+        dry_run=True,
+    )
+    assert success[0]["config_name"] == "leader.replication.throttled.rate"
+    assert success[0]["op"] == "remove"
+    assert success[1]["config_name"] == "max.connections"
+    assert success[1]["op"] == "remove"

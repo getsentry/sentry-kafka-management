@@ -107,6 +107,12 @@ def update_config_state(
         if config_name in emergency_configs:
             continue
 
+        # Remove dynamic configs that are not in emergency_configs or properties_configs
+        # (orphaned configs where the emergency config file was deleted)
+        if config_name not in properties_configs:
+            configs_to_remove.append(config_name)
+            continue
+
         if config_name not in properties_configs:
             continue
 
