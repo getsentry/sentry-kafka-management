@@ -92,9 +92,10 @@ def update_config_state(
         ):
             continue
 
-        # For sensitive configs, always apply since we can't compare masked values
+        # Don't apply sensitive configs since we can't compare masked values,
+        # so we never know when they're being updated.
         # For non-sensitive configs, only apply if values differ
-        if active_config.is_sensitive or active_config.active_value != desired_value:
+        if not active_config.is_sensitive and active_config.active_value != desired_value:
             configs_to_apply[config_name] = desired_value
 
     configs_to_remove: list[str] = []

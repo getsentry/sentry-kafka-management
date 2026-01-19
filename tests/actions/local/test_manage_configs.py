@@ -411,7 +411,7 @@ def test_update_config_state_passes_sasl_credentials_file(
 @patch("sentry_kafka_management.actions.local.manage_configs.remove_dynamic_configs")
 @patch("sentry_kafka_management.actions.local.manage_configs.apply_configs")
 @patch("sentry_kafka_management.actions.local.manage_configs.get_active_broker_configs")
-def test_update_config_state_sensitive_values_redacted(
+def test_update_config_state_sensitive_values(
     mock_get_configs: MagicMock,
     mock_apply_configs: MagicMock,
     mock_remove_configs: MagicMock,
@@ -419,10 +419,62 @@ def test_update_config_state_sensitive_values_redacted(
     temp_record_dir: Path,
     temp_properties_file: Path,
 ) -> None:
-    """Test that sensitive config values are redacted in the output."""
+    """Test that sensitive config values are not applied."""
     temp_properties_file.write_text(
         "broker.id=1001\n" "listener.name.internal.plain.sasl.jaas.config=secret_password\n"
     )
+
+    mock_get_configs.return_value = [
+        broker_id_config(),
+        Config(
+            config_name="listener.name.internal.plain.sasl.jaas.config",
+            is_sensitive=True,
+            active_value="",
+            dynamic_value=None,
+            dynamic_default_value=None,
+            static_value=None,
+            default_value=None,
+        ),
+    ]
+
+    mock_apply_configs.return_value = (
+        [],
+        [],
+    )
+    mock_remove_configs.return_value = ([], [])
+
+    success, errors = update_config_state(
+        mock_admin_client,
+        temp_record_dir,
+        temp_properties_file,
+        dry_run=True,
+    )
+
+    assert len(success) == 0
+    assert len(errors) == 0
+
+    mock_apply_configs.assert_not_called()
+
+
+@patch("sentry_kafka_management.actions.local.manage_configs.remove_dynamic_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.apply_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.get_active_broker_configs")
+def test_emergency_update_config_state_sensitive_values(
+    mock_get_configs: MagicMock,
+    mock_apply_configs: MagicMock,
+    mock_remove_configs: MagicMock,
+    mock_admin_client: MagicMock,
+    temp_record_dir: Path,
+    temp_properties_file: Path,
+) -> None:
+    """
+    Test that sensitive config values are redacted in the output when set as emergency configs.
+    """
+    (temp_record_dir / "listener.name.internal.plain.sasl.jaas.config").write_text(
+        "secret_password"
+    )
+
+    temp_properties_file.write_text("broker.id=1001\n")
 
     mock_get_configs.return_value = [
         broker_id_config(),
