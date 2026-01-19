@@ -196,7 +196,7 @@ def get_active_broker_configs(
     (and their active values on the broker).
 
     This differs from the `describe_broker_configs()` action as it tells you
-    both the active value for a config, but also the underlying
+    both the active value for a config, and also the underlying
     dynamic/static/default values for that config. This means we can get
     the static value that Kafka has stored for a config even if that config has
     a dynamic value set.
