@@ -1,3 +1,9 @@
+## 0.1.1
+
+### Bug Fixes 🐛
+
+- (config-state) Add quiet mode by @bmckerry in [#54](https://github.com/getsentry/sentry-kafka-management/pull/54)
+
 ## 0.1.0
 
 ### Bug Fixes 🐛
