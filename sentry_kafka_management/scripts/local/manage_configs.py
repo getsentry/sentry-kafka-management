@@ -52,6 +52,11 @@ from sentry_kafka_management.scripts.config_helpers import get_cluster_config
     is_flag=True,
     help="Whether to dry run the config changes, only performs validation",
 )
+@click.option(
+    "--quiet",
+    is_flag=True,
+    help="Mutes some unnecessary output by the script",
+)
 def update_config_state(
     config: Path,
     cluster: str,
@@ -59,6 +64,7 @@ def update_config_state(
     properties_file: Path,
     sasl_credentials_file: Path | None = None,
     dry_run: bool = False,
+    quiet: bool = False,
 ) -> None:
     """
     Updates the config state of the current broker by looking at emergency configs,
@@ -96,9 +102,10 @@ def update_config_state(
         click.echo("Error:")
         click.echo(json.dumps(error, indent=2))
         raise click.ClickException("One or more config changes failed")
-    if not success and not error:
-        click.echo("No config changes needed, all configs are already in desired state")
-    if dry_run:
-        click.echo("Dry run completed successfully")
-    else:
-        click.echo("All config operations completed successfully")
+    if not quiet:
+        if not success and not error:
+            click.echo("No config changes needed, all configs are already in desired state")
+        if dry_run:
+            click.echo("Dry run completed successfully")
+        else:
+            click.echo("All config operations completed successfully")
