@@ -1,3 +1,9 @@
+## 0.1.0
+
+### Bug Fixes 🐛
+
+- (configs) Remove configs if not present in emergency-configs or server.properties by @lvthanh03 in [#53](https://github.com/getsentry/sentry-kafka-management/pull/53)
+
 ## 0.0.16
 
 ### Bug Fixes 🐛
