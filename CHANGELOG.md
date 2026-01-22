@@ -1,3 +1,9 @@
+## 0.1.2
+
+### Internal Changes 🔧
+
+- (kafka_cli) Add more observability to parse_line by @bmckerry in [#55](https://github.com/getsentry/sentry-kafka-management/pull/55)
+
 ## 0.1.1
 
 ### Bug Fixes 🐛
