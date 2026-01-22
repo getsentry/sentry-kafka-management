@@ -1,3 +1,9 @@
+## 0.1.3
+
+### New Features ✨
+
+- (kafka_cli) Use a regex to parse kafka-config lines by @bmckerry in [#56](https://github.com/getsentry/sentry-kafka-management/pull/56)
+
 ## 0.1.2
 
 ### Internal Changes 🔧
