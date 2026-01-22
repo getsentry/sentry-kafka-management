@@ -158,12 +158,16 @@ def _parse_line(line: str) -> Config:
     # validate the line has the expected number of items in it
     if len(items) != 3:
         raise ValueError(f"Config line had an unexpected number of items: {items}")
-    # extract config name and current value (limit to 1 as value can contain equals sign)
-    [name, value] = items[0].split("=", 1)
-    # extract if config is sensitive
-    is_sensitive = _str_to_bool(items[1].split("=")[1])
-    # extract dynamic/static/default values, if they exist
-    synonyms = _str_to_dict(items[2].split("=", 1)[1])
+    try:
+        # extract config name and current value (limit to 1 as value can contain equals sign)
+        [name, value] = items[0].split("=", 1)
+        # extract if config is sensitive
+        is_sensitive = _str_to_bool(items[1].split("=")[1])
+        # extract dynamic/static/default values, if they exist
+        synonyms = _str_to_dict(items[2].split("=", 1)[1])
+    except IndexError as e:
+        logging.error(f"Unparsable value in items, full line: {line}, list of items: {items}")
+        raise e
     return Config(
         config_name=name,
         active_value=value,
