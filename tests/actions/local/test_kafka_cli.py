@@ -124,6 +124,31 @@ def test_run_kafka_configs_describe(mock_run: MagicMock) -> None:
             id="caps_in_value",
         ),
         pytest.param(
+            (
+                "zookeeper.connect=kafka-zookeeper-small-1:2181, kafka-zookeeper-small-2:2181, "
+                "kafka-zookeeper-small-3:2181/kafka-small sensitive=false synonyms="
+                "{STATIC_BROKER_CONFIG:zookeeper.connect=kafka-zookeeper-small-1:2181, "
+                "kafka-zookeeper-small-2:2181, kafka-zookeeper-small-3:2181/kafka-small}"
+            ),
+            Config(
+                config_name="zookeeper.connect",
+                active_value=(
+                    "kafka-zookeeper-small-1:2181, kafka-zookeeper-small-2:2181, "
+                    "kafka-zookeeper-small-3:2181/kafka-small"
+                ),
+                is_sensitive=False,
+                dynamic_value=None,
+                dynamic_default_value=None,
+                static_value=(
+                    "kafka-zookeeper-small-1:2181, kafka-zookeeper-small-2:2181, "
+                    "kafka-zookeeper-small-3:2181/kafka-small"
+                ),
+                default_value=None,
+            ),
+            False,
+            id="spaces_in_value",
+        ),
+        pytest.param(
             "offsets.topic.num.partitions=1",
             None,
             True,

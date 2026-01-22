@@ -154,24 +154,21 @@ def _parse_line(line: str) -> Config:
     """
     Parses a single line from the output of `_run_kafka_configs` into a Config object.
     """
-    items = line.split(" ", 2)
-    # validate the line has the expected number of items in it
-    if len(items) != 3:
-        raise ValueError(f"Config line had an unexpected number of items: {items}")
-    try:
-        # extract config name and current value (limit to 1 as value can contain equals sign)
-        [name, value] = items[0].split("=", 1)
-        # extract if config is sensitive
-        is_sensitive = _str_to_bool(items[1].split("=")[1])
-        # extract dynamic/static/default values, if they exist
-        synonyms = _str_to_dict(items[2].split("=", 1)[1])
-    except IndexError as e:
-        logging.error(f"Unparsable value in items, full line: {line}, list of items: {items}")
-        raise e
+    pattern = re.compile(
+        r"^(?P<config_name>[^=\s]+)=(?P<config_value>.*?)"
+        r"(?:\s+sensitive=(?P<sensitive>true|false))\s+"
+        r"synonyms=(?P<synonyms>.*)$"
+    )
+    matches = pattern.fullmatch(line)
+    if not matches:
+        raise ValueError(f"Could not parse line {line} for a config.")
+    captures = matches.groupdict()
+
+    synonyms = _str_to_dict(captures["synonyms"])
     return Config(
-        config_name=name,
-        active_value=value,
-        is_sensitive=is_sensitive,
+        config_name=captures["config_name"],
+        active_value=captures["config_value"],
+        is_sensitive=_str_to_bool(captures["sensitive"]),
         dynamic_value=synonyms.get(ConfigTypes.DYNAMIC_BROKER_CONFIG),
         dynamic_default_value=synonyms.get(ConfigTypes.DYNAMIC_DEFAULT_BROKER_CONFIG),
         static_value=synonyms.get(ConfigTypes.STATIC_BROKER_CONFIG),
