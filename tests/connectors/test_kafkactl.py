@@ -5,12 +5,12 @@ from unittest.mock import MagicMock, patch
 
 import yaml
 
-from sentry_kafka_management.actions.kafkactl import (
+from sentry_kafka_management.brokers import YamlKafkaConfig
+from sentry_kafka_management.connectors.kafkactl import (
     _maybe_create_conf,
     _setup_cluster_password,
     run_kafkactl,
 )
-from sentry_kafka_management.brokers import YamlKafkaConfig
 from tests.conftest import DummyKafkaConfig
 
 
@@ -44,9 +44,9 @@ def test_setup_cluster_password(temp_config: Path) -> None:
     assert os.getenv("CONTEXTS_CLUSTER2_SASL_PASSWORD") == "pass1"
 
 
-@patch("sentry_kafka_management.actions.kafkactl.subprocess.run")
-@patch("sentry_kafka_management.actions.kafkactl._setup_cluster_password")
-@patch("sentry_kafka_management.actions.kafkactl._maybe_create_conf")
+@patch("sentry_kafka_management.connectors.kafkactl.subprocess.run")
+@patch("sentry_kafka_management.connectors.kafkactl._setup_cluster_password")
+@patch("sentry_kafka_management.connectors.kafkactl._maybe_create_conf")
 def test_run_kafkactl(
     mock_conf: MagicMock,
     mock_setup: MagicMock,
