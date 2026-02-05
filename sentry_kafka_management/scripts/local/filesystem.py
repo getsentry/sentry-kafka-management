@@ -5,7 +5,7 @@ from pathlib import Path
 
 import click
 
-from sentry_kafka_management.actions.brokers import (
+from sentry_kafka_management.actions.brokers.configs import (
     remove_dynamic_configs as remove_dynamic_configs_action,
 )
 from sentry_kafka_management.actions.local.filesystem import (
@@ -13,7 +13,7 @@ from sentry_kafka_management.actions.local.filesystem import (
     read_record_dir,
 )
 from sentry_kafka_management.connectors.admin import get_admin_client
-from sentry_kafka_management.scripts.brokers import parse_broker_ids
+from sentry_kafka_management.scripts.brokers.configs import parse_broker_ids
 from sentry_kafka_management.scripts.config_helpers import get_cluster_config
 
 

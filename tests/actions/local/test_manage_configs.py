@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sentry_kafka_management.actions.brokers import ConfigChange
+from sentry_kafka_management.actions.brokers.configs import ConfigChange
 from sentry_kafka_management.actions.local.kafka_cli import Config
 from sentry_kafka_management.actions.local.manage_configs import update_config_state
 

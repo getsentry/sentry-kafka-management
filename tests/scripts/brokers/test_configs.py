@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 from click.testing import CliRunner
 
-from sentry_kafka_management.scripts.brokers import (
+from sentry_kafka_management.scripts.brokers.configs import (
     apply_configs,
     describe_broker_configs,
     remove_dynamic_configs,
@@ -14,7 +14,7 @@ from sentry_kafka_management.scripts.brokers import (
 
 def test_describe_broker_configs(temp_config: Path) -> None:
     with patch(
-        "sentry_kafka_management.scripts.brokers.describe_broker_configs_action",
+        "sentry_kafka_management.scripts.brokers.configs.describe_broker_configs_action",
     ) as mock_action:
         mock_configs = [
             {
@@ -49,9 +49,15 @@ def test_apply_config_command_success() -> None:
             f.write("test: config")
 
         with (
-            patch("sentry_kafka_management.scripts.brokers.get_cluster_config") as mock_get_cluster,
-            patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
-            patch("sentry_kafka_management.scripts.brokers.apply_config_action") as mock_action,
+            patch(
+                "sentry_kafka_management.scripts.brokers.configs.get_cluster_config"
+            ) as mock_get_cluster,
+            patch(
+                "sentry_kafka_management.scripts.brokers.configs.get_admin_client"
+            ) as mock_get_client,
+            patch(
+                "sentry_kafka_management.scripts.brokers.configs.apply_config_action"
+            ) as mock_action,
         ):
             mock_get_cluster.return_value = {}
             mock_get_client.return_value = Mock()
@@ -97,9 +103,13 @@ def test_apply_config_command_failure() -> None:
     runner = CliRunner()
 
     with (
-        patch("sentry_kafka_management.scripts.brokers.get_cluster_config") as mock_get_cluster,
-        patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
-        patch("sentry_kafka_management.scripts.brokers.apply_config_action") as mock_action,
+        patch(
+            "sentry_kafka_management.scripts.brokers.configs.get_cluster_config"
+        ) as mock_get_cluster,
+        patch(
+            "sentry_kafka_management.scripts.brokers.configs.get_admin_client"
+        ) as mock_get_client,
+        patch("sentry_kafka_management.scripts.brokers.configs.apply_config_action") as mock_action,
     ):
         mock_get_cluster.return_value = {}
         mock_get_client.return_value = Mock()
@@ -144,10 +154,14 @@ def test_remove_config_command_success() -> None:
             f.write("test: config")
 
         with (
-            patch("sentry_kafka_management.scripts.brokers.get_cluster_config") as mock_get_cluster,
-            patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
             patch(
-                "sentry_kafka_management.scripts.brokers.remove_dynamic_configs_action"
+                "sentry_kafka_management.scripts.brokers.configs.get_cluster_config"
+            ) as mock_get_cluster,
+            patch(
+                "sentry_kafka_management.scripts.brokers.configs.get_admin_client"
+            ) as mock_get_client,
+            patch(
+                "sentry_kafka_management.scripts.brokers.configs.remove_dynamic_configs_action"
             ) as mock_action,
         ):
             mock_get_cluster.return_value = {}
@@ -191,10 +205,14 @@ def test_remove_config_command_failure() -> None:
         with open("test.yml", "w") as f:
             f.write("test: config")
         with (
-            patch("sentry_kafka_management.scripts.brokers.get_cluster_config") as mock_get_cluster,
-            patch("sentry_kafka_management.scripts.brokers.get_admin_client") as mock_get_client,
             patch(
-                "sentry_kafka_management.scripts.brokers.remove_dynamic_configs_action"
+                "sentry_kafka_management.scripts.brokers.configs.get_cluster_config"
+            ) as mock_get_cluster,
+            patch(
+                "sentry_kafka_management.scripts.brokers.configs.get_admin_client"
+            ) as mock_get_client,
+            patch(
+                "sentry_kafka_management.scripts.brokers.configs.remove_dynamic_configs_action"
             ) as mock_action,
         ):
             mock_get_cluster.return_value = {}
