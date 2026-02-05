@@ -6,11 +6,13 @@ from typing import Sequence
 
 import click
 
-from sentry_kafka_management.actions.brokers import apply_configs as apply_config_action
-from sentry_kafka_management.actions.brokers import (
+from sentry_kafka_management.actions.brokers.configs import (
+    apply_configs as apply_config_action,
+)
+from sentry_kafka_management.actions.brokers.configs import (
     describe_broker_configs as describe_broker_configs_action,
 )
-from sentry_kafka_management.actions.brokers import (
+from sentry_kafka_management.actions.brokers.configs import (
     remove_dynamic_configs as remove_dynamic_configs_action,
 )
 from sentry_kafka_management.connectors.admin import get_admin_client

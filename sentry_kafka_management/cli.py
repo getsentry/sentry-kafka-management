@@ -5,7 +5,7 @@ from __future__ import annotations
 import click
 
 from sentry_kafka_management import __version__
-from sentry_kafka_management.scripts.brokers import (
+from sentry_kafka_management.scripts.brokers.configs import (
     apply_configs,
     describe_broker_configs,
     remove_dynamic_configs,

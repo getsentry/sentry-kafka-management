@@ -27,8 +27,8 @@ def test_cli_topics_list(
     assert parsed_output == mock_topics
 
 
-@patch("sentry_kafka_management.scripts.brokers.describe_broker_configs_action")
-@patch("sentry_kafka_management.scripts.brokers.get_admin_client")
+@patch("sentry_kafka_management.scripts.brokers.configs.describe_broker_configs_action")
+@patch("sentry_kafka_management.scripts.brokers.configs.get_admin_client")
 def test_cli_brokers_describe_configs(
     mock_get_admin: MagicMock, mock_action: MagicMock, temp_config: Path
 ) -> None:

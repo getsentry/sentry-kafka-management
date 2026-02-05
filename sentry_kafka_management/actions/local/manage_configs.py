@@ -3,7 +3,7 @@ from typing import Any
 
 from confluent_kafka.admin import AdminClient  # type: ignore[import-untyped]
 
-from sentry_kafka_management.actions.brokers import (
+from sentry_kafka_management.actions.brokers.configs import (
     apply_configs,
     remove_dynamic_configs,
 )

@@ -8,7 +8,7 @@ from confluent_kafka.admin import (  # type: ignore[import-untyped]
     ConfigSource,
 )
 
-from sentry_kafka_management.actions.brokers import (
+from sentry_kafka_management.actions.brokers.configs import (
     ConfigChange,
     _update_configs,
     apply_configs,
@@ -106,11 +106,13 @@ def test_apply_configs_success() -> None:
     mock_client = Mock()
 
     with (
-        patch("sentry_kafka_management.actions.brokers._update_configs") as mock_update,
+        patch("sentry_kafka_management.actions.brokers.configs._update_configs") as mock_update,
         patch(
-            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+            "sentry_kafka_management.actions.brokers.configs.describe_broker_configs"
         ) as mock_describe_broker_configs,
-        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.configs.describe_cluster"
+        ) as mock_describe_cluster,
     ):
         # _update_configs has to return something
         mock_update.return_value = ([], [])
@@ -168,11 +170,12 @@ def test_apply_configs_success() -> None:
 
 
 @patch(
-    "sentry_kafka_management.actions.brokers.ALLOWED_CONFIGS", ["leader.replication.throttled.rate"]
+    "sentry_kafka_management.actions.brokers.configs.ALLOWED_CONFIGS",
+    ["leader.replication.throttled.rate"],
 )
-@patch("sentry_kafka_management.actions.brokers.describe_broker_configs")
-@patch("sentry_kafka_management.actions.brokers.describe_cluster")
-@patch("sentry_kafka_management.actions.brokers._update_configs")
+@patch("sentry_kafka_management.actions.brokers.configs.describe_broker_configs")
+@patch("sentry_kafka_management.actions.brokers.configs.describe_cluster")
+@patch("sentry_kafka_management.actions.brokers.configs._update_configs")
 def test_apply_config_allowlist(
     mock_update: Mock, mock_describe_cluster: Mock, mock_describe_broker_configs: Mock
 ) -> None:
@@ -210,9 +213,11 @@ def test_apply_config_unknown_not_in_allowlist_redacts_values() -> None:
     mock_client = Mock()
 
     with (
-        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
         patch(
-            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+            "sentry_kafka_management.actions.brokers.configs.describe_cluster"
+        ) as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.configs.describe_broker_configs"
         ) as mock_describe_broker_configs,
     ):
         mock_describe_cluster.return_value = [
@@ -238,11 +243,13 @@ def test_apply_config_validation() -> None:
     mock_client = Mock()
 
     with (
-        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
         patch(
-            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+            "sentry_kafka_management.actions.brokers.configs.describe_cluster"
+        ) as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.configs.describe_broker_configs"
         ) as mock_describe_broker_configs,
-        patch("sentry_kafka_management.actions.brokers._update_configs") as mock_update,
+        patch("sentry_kafka_management.actions.brokers.configs._update_configs") as mock_update,
     ):
         mock_describe_cluster.return_value = [
             {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
@@ -274,11 +281,13 @@ def test_remove_dynamic_configs_success() -> None:
     mock_client = Mock()
 
     with (
-        patch("sentry_kafka_management.actions.brokers._update_configs") as mock_update,
+        patch("sentry_kafka_management.actions.brokers.configs._update_configs") as mock_update,
         patch(
-            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+            "sentry_kafka_management.actions.brokers.configs.describe_broker_configs"
         ) as mock_describe_broker_configs,
-        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.configs.describe_cluster"
+        ) as mock_describe_cluster,
     ):
         # _update_configs has to return something
         mock_update.return_value = ([], [])
@@ -322,11 +331,13 @@ def test_remove_dynamic_configs_validation() -> None:
     mock_client = Mock()
 
     with (
-        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
         patch(
-            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+            "sentry_kafka_management.actions.brokers.configs.describe_cluster"
+        ) as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.configs.describe_broker_configs"
         ) as mock_describe_broker_configs,
-        patch("sentry_kafka_management.actions.brokers._update_configs") as mock_update,
+        patch("sentry_kafka_management.actions.brokers.configs._update_configs") as mock_update,
     ):
         mock_describe_cluster.return_value = [
             {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
@@ -358,11 +369,13 @@ def test_remove_dynamic_configs_allowlist() -> None:
     mock_client = Mock()
 
     with (
-        patch("sentry_kafka_management.actions.brokers.describe_cluster") as mock_describe_cluster,
         patch(
-            "sentry_kafka_management.actions.brokers.describe_broker_configs"
+            "sentry_kafka_management.actions.brokers.configs.describe_cluster"
+        ) as mock_describe_cluster,
+        patch(
+            "sentry_kafka_management.actions.brokers.configs.describe_broker_configs"
         ) as mock_describe_broker_configs,
-        patch("sentry_kafka_management.actions.brokers._update_configs") as mock_update,
+        patch("sentry_kafka_management.actions.brokers.configs._update_configs") as mock_update,
     ):
         mock_describe_cluster.return_value = [
             {"id": "0", "host": "localhost", "port": 9092, "rack": None, "isController": True}
@@ -381,9 +394,9 @@ def test_remove_dynamic_configs_allowlist() -> None:
         mock_client.incremental_alter_configs.assert_not_called()
 
 
-@patch("sentry_kafka_management.actions.brokers._update_configs")
-@patch("sentry_kafka_management.actions.brokers.describe_broker_configs")
-@patch("sentry_kafka_management.actions.brokers.describe_cluster")
+@patch("sentry_kafka_management.actions.brokers.configs._update_configs")
+@patch("sentry_kafka_management.actions.brokers.configs.describe_broker_configs")
+@patch("sentry_kafka_management.actions.brokers.configs.describe_cluster")
 def test_apply_configs_dry_run(
     mock_describe_cluster: Mock, mock_describe_broker_configs: Mock, mock_update_configs: Mock
 ) -> None:
