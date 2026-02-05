@@ -1,14 +1,15 @@
-import os
 from pathlib import Path
+from subprocess import CalledProcessError
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
+import pytest
 import yaml
 
 from sentry_kafka_management.brokers import YamlKafkaConfig
 from sentry_kafka_management.connectors.kafkactl import (
+    _generate_password_env,
     _maybe_create_conf,
-    _setup_cluster_password,
     run_kafkactl,
 )
 from tests.conftest import DummyKafkaConfig
@@ -38,18 +39,21 @@ def test_maybe_create_conf(temp_config: Path) -> None:
             assert data == expected
 
 
-def test_setup_cluster_password(temp_config: Path) -> None:
+def test_generate_password_env(temp_config: Path) -> None:
     clusters = YamlKafkaConfig(temp_config)
-    _setup_cluster_password(clusters)
-    assert os.getenv("CONTEXTS_CLUSTER2_SASL_PASSWORD") == "pass1"
+    res = _generate_password_env(clusters)
+    assert res == {"CONTEXTS_CLUSTER2_SASL_PASSWORD": "pass1"}
 
 
 @patch("sentry_kafka_management.connectors.kafkactl.subprocess.run")
-@patch("sentry_kafka_management.connectors.kafkactl._setup_cluster_password")
+@patch(
+    "sentry_kafka_management.connectors.kafkactl._generate_password_env",
+    return_value={"CONTEXTS_CLUSTER2_SASL_PASSWORD": "pass1"},
+)
 @patch("sentry_kafka_management.connectors.kafkactl._maybe_create_conf")
-def test_run_kafkactl(
+def test_run_kafkactl_success(
     mock_conf: MagicMock,
-    mock_setup: MagicMock,
+    mock_password: MagicMock,
     mock_run: MagicMock,
 ) -> None:
     mock_run.return_value.stdout = "command_output"
@@ -68,5 +72,30 @@ def test_run_kafkactl(
         capture_output=True,
         text=True,
         check=True,
+        timeout=30,
+        env={"CONTEXTS_CLUSTER2_SASL_PASSWORD": "pass1"},
     )
     assert output == "command_output"
+
+
+@patch(
+    "sentry_kafka_management.connectors.kafkactl.subprocess.run",
+    side_effect=CalledProcessError(returncode=2, cmd=["foo"]),
+)
+@patch("sentry_kafka_management.connectors.kafkactl._generate_password_env")
+@patch("sentry_kafka_management.connectors.kafkactl._maybe_create_conf")
+def test_run_kafkactl_failure(
+    mock_conf: MagicMock,
+    mock_password: MagicMock,
+    mock_run: MagicMock,
+) -> None:
+    kafkactl_exec = "/usr/bin/kafkactl"
+    kafkactl_conf = "/var/conf/kafkactl.yaml"
+    cli_args = ["describe", "topic", "ingest-events"]
+    with pytest.raises(RuntimeError):
+        run_kafkactl(
+            cli_args,
+            DummyKafkaConfig(),
+            Path(kafkactl_exec),
+            Path(kafkactl_conf),
+        )

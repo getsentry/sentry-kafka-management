@@ -1,22 +1,25 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, MutableMapping
 
 import yaml
 
 from sentry_kafka_management.brokers import KafkaConfig
 
 
-def _setup_cluster_password(skm_conf: KafkaConfig) -> None:
+def _generate_password_env(skm_conf: KafkaConfig) -> MutableMapping[str, str]:
     """
     In order to not hardcode Kafka passwords in the kafkactl config file,
     we can set the password as an env var on the pod in the form
     `CONTEXTS_{CLUSTER_NAME}_SASL_PASSWORD`.
+    This generates a mapping of password environment variables which can
+    then be passed as the `env` arg to `subprocess.run()`.
 
     See https://github.com/deviceinsight/kafkactl/tree/main?tab=readme-ov-file#configuration-via-environment-variables # noqa: E501
     for more details.
     """
+    password_map = {}
     for cluster, config in skm_conf.get_clusters().items():
         if config["sasl_password"]:
             if config["password_is_plaintext"]:
@@ -24,7 +27,8 @@ def _setup_cluster_password(skm_conf: KafkaConfig) -> None:
             else:
                 password = os.path.expandvars(config["sasl_password"])
             cluster_name = cluster.replace("-", "_").upper()
-            os.environ[f"CONTEXTS_{cluster_name}_SASL_PASSWORD"] = password
+            password_map[f"CONTEXTS_{cluster_name}_SASL_PASSWORD"] = password
+    return password_map
 
 
 def _maybe_create_conf(kafkactl_conf_path: Path, skm_conf: KafkaConfig) -> None:
@@ -55,6 +59,7 @@ def run_kafkactl(
     skm_conf: KafkaConfig,
     kafkactl_exec: Path = Path("/usr/bin/kafkactl"),
     kafkactl_conf: Path = Path("~/.config/kafkactl/config.yml").expanduser(),
+    timeout: int = 30,
 ) -> str:
     """
     Runs the given kafkactl command, returning the stdout output.
@@ -66,11 +71,11 @@ def run_kafkactl(
             If one doesn't exist, it'll be generated at this location
             from the sentry-kafka-management config file.
         skm_conf: A sentry-kafka-management config object.
+        timeout: Sets a timeout in seconds on the `kafkactl` subprocess call. Default 30s.
     Returns:
         The stdout from the kafkactl command result.
     """
     _maybe_create_conf(kafkactl_conf, skm_conf)
-    _setup_cluster_password(skm_conf)
 
     try:
         result = subprocess.run(
@@ -78,6 +83,8 @@ def run_kafkactl(
             capture_output=True,
             text=True,
             check=True,
+            timeout=timeout,
+            env=_generate_password_env(skm_conf),
         )
     except subprocess.CalledProcessError as e:
         error_msg = f"Command failed with exit code {e.returncode}"
