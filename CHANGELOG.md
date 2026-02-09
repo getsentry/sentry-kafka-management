@@ -1,3 +1,14 @@
+## 0.1.4
+
+### New Features ✨
+
+- (topics) Add describe_topic_partitions script/action by @bmckerry in [#60](https://github.com/getsentry/sentry-kafka-management/pull/60)
+- Add kafkactl to the skm docker image by @bmckerry in [#57](https://github.com/getsentry/sentry-kafka-management/pull/57)
+
+### Internal Changes 🔧
+
+- (actions) Split broker actions into separate files by @bmckerry in [#59](https://github.com/getsentry/sentry-kafka-management/pull/59)
+
 ## 0.1.3
 
 ### New Features ✨
