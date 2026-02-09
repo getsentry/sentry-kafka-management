@@ -14,8 +14,14 @@ from sentry_kafka_management.scripts.clusters import describe_cluster
 from sentry_kafka_management.scripts.local.filesystem import (
     remove_recorded_dynamic_configs,
 )
-from sentry_kafka_management.scripts.local.manage_configs import update_config_state
-from sentry_kafka_management.scripts.topics import list_offsets, list_topics
+from sentry_kafka_management.scripts.local.manage_configs import (
+    update_config_state,
+)
+from sentry_kafka_management.scripts.topics import (
+    describe_topic_partitions,
+    list_offsets,
+    list_topics,
+)
 
 COMMANDS = [
     apply_configs,
@@ -24,6 +30,7 @@ COMMANDS = [
     describe_cluster,
     list_topics,
     list_offsets,
+    describe_topic_partitions,
     remove_dynamic_configs,
     remove_recorded_dynamic_configs,
 ]

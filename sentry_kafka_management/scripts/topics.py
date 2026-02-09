@@ -5,6 +5,9 @@ from pathlib import Path
 
 import click
 
+from sentry_kafka_management.actions.topics import (
+    describe_topic_partitions as describe_topic_partitions_action,
+)
 from sentry_kafka_management.actions.topics import list_offsets as list_offsets_action
 from sentry_kafka_management.actions.topics import list_topics as list_topics_action
 from sentry_kafka_management.connectors.admin import get_admin_client
@@ -57,4 +60,29 @@ def list_offsets(config: Path, cluster: str, topic: str) -> None:
     cluster_config = get_cluster_config(config, cluster)
     client = get_admin_client(cluster_config)
     result = list_offsets_action(client, topic)
+    click.echo(json.dumps(result, indent=2))
+
+
+@click.command()
+@click.option(
+    "-c",
+    "--config",
+    type=click.Path(exists=True, path_type=Path),
+    required=True,
+    help="Path to the YAML configuration file",
+)
+@click.option(
+    "-n",
+    "--cluster",
+    required=True,
+    help="Name of the cluster to query",
+)
+@click.option("-t", "--topic", required=True, help="Name of the topic to query")
+def describe_topic_partitions(config: Path, cluster: str, topic: str) -> None:
+    """
+    Describe partitions for a given topic in a Kafka cluster.
+    """
+    cluster_config = get_cluster_config(config, cluster)
+    client = get_admin_client(cluster_config)
+    result = describe_topic_partitions_action(client, topic)
     click.echo(json.dumps(result, indent=2))
