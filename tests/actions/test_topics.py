@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 from confluent_kafka import (  # type: ignore[import-untyped]
+    KafkaError,
     KafkaException,
     TopicPartition,
 )
@@ -14,6 +15,7 @@ from confluent_kafka.admin import (  # type: ignore[import-untyped]
 
 from sentry_kafka_management.actions.topics import (
     describe_topic_configs,
+    describe_topic_partitions,
     list_offsets,
     list_topics,
 )
@@ -171,3 +173,63 @@ def test_describe_topic_configs() -> None:
     result = describe_topic_configs(mock_client)
     mock_client.describe_configs.assert_called_once()
     assert result == expected
+
+
+def test_describe_topic_partitions() -> None:
+    """Test describing topic partitions."""
+    expected = [
+        {
+            "topic": "test_topic",
+            "id": 0,
+            "leader": 1,
+            "replicas": [1, 2],
+            "isr": [1, 2],
+        },
+        {
+            "topic": "test_topic",
+            "id": 1,
+            "leader": 2,
+            "replicas": [1, 2],
+            "isr": [2],
+        },
+    ]
+
+    mock_client = Mock()
+    mock_partition_0 = Mock()
+    mock_partition_0.id = 0
+    mock_partition_0.leader = Mock()
+    mock_partition_0.leader.id = 1
+    mock_partition_0.replicas = [Mock(id=1), Mock(id=2)]
+    mock_partition_0.isr = [Mock(id=1), Mock(id=2)]
+
+    mock_partition_1 = Mock()
+    mock_partition_1.id = 1
+    mock_partition_1.leader = Mock()
+    mock_partition_1.leader.id = 2
+    mock_partition_1.replicas = [Mock(id=1), Mock(id=2)]
+    mock_partition_1.isr = [Mock(id=2)]
+
+    mock_topic_result = Mock()
+    mock_topic_result.name = "test_topic"
+    mock_topic_result.partitions = [mock_partition_0, mock_partition_1]
+
+    mock_future = Mock()
+    mock_future.result.return_value = mock_topic_result
+    mock_client.describe_topics.return_value = {"test_topic": mock_future}
+
+    result = describe_topic_partitions(mock_client, "test_topic")
+    mock_client.describe_topics.assert_called_once()
+    assert result == expected
+
+
+def test_describe_topic_partitions_nonexistent_topic() -> None:
+    """Test describing partitions for a topic that doesn't exist."""
+    mock_client = Mock()
+    mock_future = Mock()
+    mock_error = Mock()
+    mock_error.code.return_value = KafkaError.UNKNOWN_TOPIC_OR_PART
+    mock_future.result.side_effect = KafkaException(mock_error)
+    mock_client.describe_topics.return_value = {"nonexistent": mock_future}
+
+    with pytest.raises(ValueError):
+        describe_topic_partitions(mock_client, "nonexistent")

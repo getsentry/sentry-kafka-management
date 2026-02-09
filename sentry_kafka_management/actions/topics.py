@@ -1,6 +1,7 @@
 from typing import Any, Mapping, Sequence
 
 from confluent_kafka import (  # type: ignore[import-untyped]
+    KafkaError,
     KafkaException,
     TopicCollection,
     TopicPartition,
@@ -97,3 +98,26 @@ def list_offsets(admin_client: AdminClient, topic: str) -> list[dict[str, Any]]:
         )
 
     return result
+
+
+def describe_topic_partitions(admin_client: AdminClient, topic: str) -> list[dict[str, Any]]:
+    topics = admin_client.describe_topics(TopicCollection([topic]))
+
+    try:
+        result = topics[topic].result(timeout=KAFKA_TIMEOUT)
+    except KafkaException as e:
+        if e.args[0].code() == KafkaError.UNKNOWN_TOPIC_OR_PART:
+            raise ValueError(f"Topic {topic} not found")
+        else:
+            raise
+
+    return [
+        {
+            "topic": result.name,
+            "id": p.id,
+            "leader": p.leader.id,
+            "replicas": [r.id for r in p.replicas],
+            "isr": [r.id for r in p.isr],
+        }
+        for p in result.partitions
+    ]
