@@ -5,14 +5,14 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from sentry_kafka_management.scripts.topics import (
+from sentry_kafka_management.scripts.topics.describe import (
     describe_topic_partitions,
     list_offsets,
     list_topics,
 )
 
 
-@patch("sentry_kafka_management.scripts.topics.get_admin_client")
+@patch("sentry_kafka_management.scripts.topics.describe.get_admin_client")
 def test_list_topics(mock_get_admin: MagicMock, temp_config: Path) -> None:
     mock_client = MagicMock()
     mock_client.list_topics.return_value.topics = {
@@ -29,7 +29,7 @@ def test_list_topics(mock_get_admin: MagicMock, temp_config: Path) -> None:
     assert parsed_output == ["topic1", "topic2"]
 
 
-@patch("sentry_kafka_management.scripts.topics.get_admin_client")
+@patch("sentry_kafka_management.scripts.topics.describe.get_admin_client")
 def test_list_offsets(mock_get_admin: MagicMock, temp_config: Path) -> None:
     mock_client = MagicMock()
     mock_partition = MagicMock()
@@ -69,7 +69,7 @@ def test_list_offsets(mock_get_admin: MagicMock, temp_config: Path) -> None:
     assert parsed_output[0]["partition"] == 0
 
 
-@patch("sentry_kafka_management.scripts.topics.get_admin_client")
+@patch("sentry_kafka_management.scripts.topics.describe.get_admin_client")
 def test_describe_topic_partitions(mock_get_admin: MagicMock, temp_config: Path) -> None:
     mock_client = MagicMock()
     mock_partition = MagicMock()
