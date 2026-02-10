@@ -7,8 +7,8 @@ import click.testing
 from sentry_kafka_management.cli import main as cli
 
 
-@patch("sentry_kafka_management.scripts.topics.list_topics_action")
-@patch("sentry_kafka_management.scripts.topics.get_admin_client")
+@patch("sentry_kafka_management.scripts.topics.describe.list_topics_action")
+@patch("sentry_kafka_management.scripts.topics.describe.get_admin_client")
 def test_cli_topics_list(
     mock_get_admin: MagicMock, mock_action: MagicMock, temp_config: Path
 ) -> None:

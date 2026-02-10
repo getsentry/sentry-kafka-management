@@ -3,7 +3,7 @@
 `actions/` is a library of functions that interact with Kafka in some way.
 Actions are separated into files based on what they interact with:
 - `clusters.py` for cluster-level operations
-- `topics.py` for topic-level operations
+- `topics/` for topic-level operations
 - `brokers/` for broker-level operations
 
 These actions can be imported into our tools that interact with Kafka. Scripts can be created that run these actions in the `scripts/` directory.

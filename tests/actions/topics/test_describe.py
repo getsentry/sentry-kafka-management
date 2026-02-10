@@ -13,7 +13,7 @@ from confluent_kafka.admin import (  # type: ignore[import-untyped]
     OffsetSpec,
 )
 
-from sentry_kafka_management.actions.topics import (
+from sentry_kafka_management.actions.topics.describe import (
     describe_topic_configs,
     describe_topic_partitions,
     list_offsets,
