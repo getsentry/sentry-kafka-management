@@ -25,23 +25,6 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 COPY pyproject.toml pyproject.toml
 RUN uv pip install --system -r pyproject.toml
 
-# Install kafkactl
-RUN apt-get update && apt-get install -y wget
-RUN set -ex; \
-    # Architecture detection for Mac local builds
-    ARCH=$(dpkg --print-architecture); \
-    case "${ARCH}" in \
-        amd64) \
-            KAFKACTL_ARCH="amd64" ;; \
-        arm64) \
-            KAFKACTL_ARCH="arm64" ;; \
-        *) \
-            echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
-    esac; \
-    wget --quiet -O kafkactl.deb "https://github.com/deviceinsight/kafkactl/releases/download/v5.17.0/kafkactl_5.17.0_linux_${KAFKACTL_ARCH}.deb" && \
-    dpkg -i kafkactl.deb && \
-    rm kafkactl.deb
-
 # Copy application source (owned by non-root user)
 COPY --chown=kafka_mgmt:kafka_mgmt sentry_kafka_management/ sentry_kafka_management/
 
