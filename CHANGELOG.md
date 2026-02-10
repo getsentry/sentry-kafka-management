@@ -1,3 +1,22 @@
+## 0.1.5
+
+### New Features ✨
+
+#### Topics
+
+- Add healthcheck script by @bmckerry in [#62](https://github.com/getsentry/sentry-kafka-management/pull/62)
+- Add describe_topic_partitions script/action by @bmckerry in [#60](https://github.com/getsentry/sentry-kafka-management/pull/60)
+
+#### Other
+
+- Remove kafkactl by @bmckerry in [#63](https://github.com/getsentry/sentry-kafka-management/pull/63)
+- Add kafkactl to the skm docker image by @bmckerry in [#57](https://github.com/getsentry/sentry-kafka-management/pull/57)
+
+### Internal Changes 🔧
+
+- (actions) Split broker actions into separate files by @bmckerry in [#59](https://github.com/getsentry/sentry-kafka-management/pull/59)
+- (topics) Split topics into its own module by @bmckerry in [#61](https://github.com/getsentry/sentry-kafka-management/pull/61)
+
 ## 0.1.3
 
 ### New Features ✨
