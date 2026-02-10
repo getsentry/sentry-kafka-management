@@ -17,7 +17,7 @@ from sentry_kafka_management.scripts.local.filesystem import (
 from sentry_kafka_management.scripts.local.manage_configs import (
     update_config_state,
 )
-from sentry_kafka_management.scripts.topics import (
+from sentry_kafka_management.scripts.topics.describe import (
     describe_topic_partitions,
     list_offsets,
     list_topics,

@@ -5,11 +5,15 @@ from pathlib import Path
 
 import click
 
-from sentry_kafka_management.actions.topics import (
+from sentry_kafka_management.actions.topics.describe import (
     describe_topic_partitions as describe_topic_partitions_action,
 )
-from sentry_kafka_management.actions.topics import list_offsets as list_offsets_action
-from sentry_kafka_management.actions.topics import list_topics as list_topics_action
+from sentry_kafka_management.actions.topics.describe import (
+    list_offsets as list_offsets_action,
+)
+from sentry_kafka_management.actions.topics.describe import (
+    list_topics as list_topics_action,
+)
 from sentry_kafka_management.connectors.admin import get_admin_client
 from sentry_kafka_management.scripts.config_helpers import get_cluster_config
 
