@@ -101,6 +101,9 @@ def list_offsets(admin_client: AdminClient, topic: str) -> list[dict[str, Any]]:
 
 
 def describe_topic_partitions(admin_client: AdminClient, topic: str) -> list[dict[str, Any]]:
+    """
+    Returns partition info for the given topic.
+    """
     topics = admin_client.describe_topics(TopicCollection([topic]))
 
     try:
