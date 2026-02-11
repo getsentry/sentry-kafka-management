@@ -26,6 +26,9 @@ class Partition:
     def __hash__(self) -> int:
         return hash((self.topic, self.id, self.leader, tuple(self.replicas), tuple(self.isr)))
 
+    def to_json(self) -> dict[str, str]:
+        return asdict(self)
+
 
 class HealthResponseReason:
     """

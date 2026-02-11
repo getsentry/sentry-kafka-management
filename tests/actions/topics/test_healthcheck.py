@@ -11,8 +11,12 @@ from sentry_kafka_management.actions.topics.healthcheck import (
 )
 
 # Used in tests to pass a Partition to HealthResponseReason
-TOPIC1_0_PARTITION = Partition("topic1", "0", "0", ["0", "1", "2"], ["0", "1", "2"])
-TOPIC2_0_PARTITION = Partition("topic2", "0", "0", ["0", "1", "2"], ["0", "1", "2"])
+TOPIC1_0_HEALTHY_PARTITION = Partition("topic1", "0", "0", ["0", "1", "2"], ["0", "1", "2"])
+TOPIC1_1_HEALTHY_PARTITION = Partition("topic1", "1", "2", ["2", "3", "4"], ["2", "3", "4"])
+TOPIC1_2_HEALTHY_PARTITION = Partition("topic1", "2", "6", ["6", "5", "4"], ["4", "5", "6"])
+TOPIC2_0_HEALTHY_PARTITION = Partition("topic2", "0", "0", ["0", "1", "2"], ["0", "1", "2"])
+TOPIC1_0_ISR_PARTITION = Partition("topic1", "0", "0", ["0", "1", "2"], ["0", "1"])
+TOPIC2_0_LEADER_PARTITION = Partition("topic2", "0", "2", ["0", "1", "2"], ["0", "1", "2"])
 
 
 @pytest.mark.parametrize(
@@ -21,24 +25,8 @@ TOPIC2_0_PARTITION = Partition("topic2", "0", "0", ["0", "1", "2"], ["0", "1", "
         pytest.param(
             ["topic1", "topic2"],
             [
-                [
-                    {
-                        "topic": "topic1",
-                        "id": "0",
-                        "leader": "0",
-                        "replicas": ["0", "1", "2"],
-                        "isr": ["2", "1", "0"],
-                    }
-                ],
-                [
-                    {
-                        "topic": "topic2",
-                        "id": "0",
-                        "leader": "2",
-                        "replicas": ["2", "1", "0"],
-                        "isr": ["2", "0", "1"],
-                    }
-                ],
+                [TOPIC1_0_HEALTHY_PARTITION.to_json()],
+                [TOPIC2_0_HEALTHY_PARTITION.to_json()],
             ],
             HealthResponse(healthy=True, reason=[HealthResponseReason.healthy()]),
             id="healthy_topics",
@@ -47,97 +35,47 @@ TOPIC2_0_PARTITION = Partition("topic2", "0", "0", ["0", "1", "2"], ["0", "1", "
             ["topic1"],
             [
                 [
-                    {
-                        "topic": "topic1",
-                        "id": "0",
-                        "leader": "0",
-                        "replicas": ["0", "1", "2"],
-                        "isr": ["2", "1", "0"],
-                    },
-                    {
-                        "topic": "topic1",
-                        "id": "1",
-                        "leader": "2",
-                        "replicas": ["2", "3", "4"],
-                        "isr": ["2", "4", "3"],
-                    },
-                    {
-                        "topic": "topic1",
-                        "id": "2",
-                        "leader": "6",
-                        "replicas": ["6", "4", "5"],
-                        "isr": ["4", "6", "5"],
-                    },
+                    TOPIC1_0_HEALTHY_PARTITION.to_json(),
+                    TOPIC1_1_HEALTHY_PARTITION.to_json(),
+                    TOPIC1_2_HEALTHY_PARTITION.to_json(),
                 ],
             ],
             HealthResponse(healthy=True, reason=[HealthResponseReason.healthy()]),
-            id="healthy_topics_multiple_partitions",
+            id="healthy_topic_multiple_partitions",
         ),
         pytest.param(
             ["topic1"],
             [
-                [
-                    {
-                        "topic": "topic1",
-                        "id": "0",
-                        "leader": "0",
-                        "replicas": ["0", "1", "2"],
-                        "isr": ["2", "0"],
-                    }
-                ],
+                [TOPIC1_0_ISR_PARTITION.to_json()],
             ],
             HealthResponse(
                 healthy=False,
-                reason=[HealthResponseReason.outside_isr([TOPIC1_0_PARTITION])],
+                reason=[HealthResponseReason.outside_isr([TOPIC1_0_ISR_PARTITION])],
             ),
             id="not_enough_isr",
         ),
         pytest.param(
             ["topic1"],
             [
-                [
-                    {
-                        "topic": "topic1",
-                        "id": "0",
-                        "leader": "2",
-                        "replicas": ["0", "1", "2"],
-                        "isr": ["2", "0", "1"],
-                    }
-                ],
+                [TOPIC2_0_LEADER_PARTITION.to_json()],
             ],
             HealthResponse(
                 healthy=False,
-                reason=[HealthResponseReason.not_preferred_leaders([TOPIC1_0_PARTITION])],
+                reason=[HealthResponseReason.not_preferred_leaders([TOPIC2_0_LEADER_PARTITION])],
             ),
             id="not_preferred_leader",
         ),
         pytest.param(
             ["topic1", "topic2"],
             [
-                [
-                    {
-                        "topic": "topic1",
-                        "id": "0",
-                        "leader": "2",
-                        "replicas": ["0", "1", "2"],
-                        "isr": ["2", "0", "1"],
-                    }
-                ],
-                [
-                    {
-                        "topic": "topic2",
-                        "id": "0",
-                        "leader": "0",
-                        "replicas": ["0", "1", "2"],
-                        "isr": ["2", "0"],
-                    }
-                ],
+                [TOPIC1_0_ISR_PARTITION.to_json()],
+                [TOPIC2_0_LEADER_PARTITION.to_json()],
             ],
             HealthResponse(
                 healthy=False,
                 reason=[
-                    HealthResponseReason.outside_isr([TOPIC2_0_PARTITION]),
-                    HealthResponseReason.not_preferred_leaders([TOPIC1_0_PARTITION]),
+                    HealthResponseReason.outside_isr([TOPIC1_0_ISR_PARTITION]),
+                    HealthResponseReason.not_preferred_leaders([TOPIC2_0_LEADER_PARTITION]),
                 ],
             ),
             id="not_preferred_and_not_isr",
