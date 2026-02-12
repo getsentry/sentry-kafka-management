@@ -1,3 +1,9 @@
+## 0.1.6
+
+### New Features ✨
+
+- (healthcheck) Add option to log each HealthResponse by @bmckerry in [#64](https://github.com/getsentry/sentry-kafka-management/pull/64)
+
 ## 0.1.5
 
 ### New Features ✨
