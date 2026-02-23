@@ -1,3 +1,9 @@
+## 0.1.7
+
+### New Features ✨
+
+- (clusters) Create action/script for getting cluster controller by @bmckerry in [#65](https://github.com/getsentry/sentry-kafka-management/pull/65)
+
 ## 0.1.6
 
 ### New Features ✨
