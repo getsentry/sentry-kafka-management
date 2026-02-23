@@ -10,7 +10,10 @@ from sentry_kafka_management.scripts.brokers.configs import (
     describe_broker_configs,
     remove_dynamic_configs,
 )
-from sentry_kafka_management.scripts.clusters import describe_cluster
+from sentry_kafka_management.scripts.clusters import (
+    describe_cluster,
+    get_cluster_controller,
+)
 from sentry_kafka_management.scripts.local.filesystem import (
     remove_recorded_dynamic_configs,
 )
@@ -31,6 +34,7 @@ COMMANDS = [
     describe_topic_partitions,
     describe_broker_configs,
     describe_cluster,
+    get_cluster_controller,
     healthcheck_cluster_topics,
     list_topics,
     list_offsets,

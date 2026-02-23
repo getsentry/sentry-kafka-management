@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 from confluent_kafka.admin import AdminClient  # type: ignore[import-untyped]
 
@@ -24,3 +24,11 @@ def describe_cluster(
         }
         for node in res.nodes
     ]
+
+
+def get_cluster_controller(admin_client: AdminClient) -> str:
+    cluster_data = describe_cluster(admin_client)
+    for broker in cluster_data:
+        if broker["isController"]:
+            return cast(str, broker["id"])
+    raise RuntimeError("No controller found for the cluster.")
