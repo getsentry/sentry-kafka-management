@@ -1,9 +1,12 @@
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock, patch
 
 from confluent_kafka import Node  # type: ignore[import-untyped]
 from confluent_kafka.admin import DescribeClusterResult  # type: ignore[import-untyped]
 
-from sentry_kafka_management.actions.clusters import describe_cluster
+from sentry_kafka_management.actions.clusters import (
+    describe_cluster,
+    get_cluster_controller,
+)
 
 
 def test_describe_cluster() -> None:
@@ -43,3 +46,27 @@ def test_describe_cluster() -> None:
     result = describe_cluster(mock_client)
     mock_client.describe_cluster.assert_called_once()
     assert result == expected
+
+
+@patch(
+    "sentry_kafka_management.actions.clusters.describe_cluster",
+    return_value=[
+        {
+            "id": "0",
+            "host": "test-host-1",
+            "port": "9092",
+            "rack": "a",
+            "isController": True,
+        },
+        {
+            "id": "1",
+            "host": "test-host-2",
+            "port": "9092",
+            "rack": "b",
+            "isController": False,
+        },
+    ],
+)
+def test_get_cluster_controller(mock_describe: MagicMock) -> None:
+    res = get_cluster_controller(Mock())
+    assert res == "0"
