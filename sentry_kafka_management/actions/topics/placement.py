@@ -1,3 +1,63 @@
+"""
+Topic placement algorithm for Kafka clusters.
+
+When we scale a Kafka cluster horizontally for instance, we will have to
+move partitions from existing brokers to newly added brokers.
+
+First, we introduce the concept of "slices" for this algorithm.
+
+Partitions are assigned to "slices" of brokers, where each slice contains
+one broker per availability zone. A partition being assigned to a slice
+means that the partition will guaranteed to have its replicas across all
+availability zones.
+
+For example, if we have a cluster with 9 brokers, 3 per availability zone,
+we will have 3 slices:
+    Slice 0: [0, 1, 2]
+    Slice 1: [3, 4, 5]
+    Slice 2: [6, 7, 8]
+
+Within each slice, leader assignment is rotated to distribute leadership
+evenly across brokers:
+    Slice [0, 1, 2] produces configs: [0,1,2], [1,2,0], [2,0,1]
+
+Slices are built using broker FQDNs which contains zone information.
+
+A "replica rotation config" is a list of broker IDs that represents the order
+in which replicas for a partition are assigned to brokers. For example,
+a replica rotation config [0, 1, 2] means that the replicas for a partition
+will be assigned to the brokers with IDs 0, 1, 2.
+
+The first broker ID in the rotation config is the broker where the leader of
+the partition is assigned to. Thus, in order to have the leaders of all partitions
+spread evenly across brokers, we need rotate the replica config before assigning.
+
+The algorithm steps are:
+1. Fetches broker IDs, topics and topic partitions from the cluster.
+2. Builds the "slices" of broker IDs. Slice generation must be deterministic
+   so that we can re-run the algorithm and get the same result.
+3. Count the partitions per slice. If a partition has its replicas in a slice that
+   matches one of our built slices, it is considered "placed". Otherwise, it is
+   considered "unplaced".
+4. Assign unplaced partitions to the least-common replica config.
+5. Rebalance across slices. Compute the target count per slice as
+   total_partitions // num_slices (with the remainder distributed to
+   the first few slices). Then compute the delta for each slice
+   (current - target). Slices with a positive delta are over-represented
+   and donate partitions; slices with a negative delta are
+   under-represented and receive them.
+
+   For example, with 64 partitions across 3 slices, each slice targets
+   22/21/21 partitions. If we add 2 slices (now 5 total), each slice
+   targets 13/13/13/13/12 partitions. The 3 existing slices each need to
+   give up 9/8/8 partitions to fill the 2 new slices. This makes horizontal
+   scaling incremental, and we only move the minimum number of partitions
+   needed to balance, rather than repartitioning everything.
+
+Reference:
+- https://www.notion.so/sentry/Ideal-Topic-Placement-Algorithm-3208b10e4b5d80889bd2f05195fea82d
+"""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -25,8 +85,8 @@ SLICE_SIZE = 3
 
 def build_slices(broker_id_mapping: dict[str, int]) -> list[Slice]:
     """
-    Given a list of broker endpoints and a mapping of broker endpoints to broker IDs,
-    build a list of slices, where each slice is a list of broker IDs (one per zone).
+    Given a mapping of broker endpoints to broker IDs, build a list of slices,
+    where each slice is a list of broker IDs (one per zone).
     """
     slices: list[Slice] = []
     by_zone: dict[str, list[int]] = defaultdict(list)
@@ -39,6 +99,8 @@ def build_slices(broker_id_mapping: dict[str, int]) -> list[Slice]:
         by_zone[zone].append(broker_id)
 
     zones = sorted(by_zone.keys())
+    for zone in zones:
+        by_zone[zone].sort()
 
     # all zones should have the same number of brokers
     if not all(len(by_zone[z]) == len(by_zone[zones[0]]) for z in zones):
