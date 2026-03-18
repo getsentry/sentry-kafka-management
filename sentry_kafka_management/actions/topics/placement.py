@@ -40,6 +40,10 @@ def build_slices(broker_id_mapping: dict[str, int]) -> list[Slice]:
 
     zones = sorted(by_zone.keys())
 
+    # sort broker IDs within each zone for deterministic slice construction
+    for zone in zones:
+        by_zone[zone].sort()
+
     # all zones should have the same number of brokers
     if not all(len(by_zone[z]) == len(by_zone[zones[0]]) for z in zones):
         raise ValueError("All zones must have the same number of brokers")
@@ -56,7 +60,7 @@ def _replica_configs(slice_brokers: Slice) -> list[ReplicaList]:
     """
     Given a slice, return a list of all replica configurations for the slice.
     """
-    return [slice_brokers[i:] + slice_brokers[:i] for i in range(SLICE_SIZE)]
+    return [slice_brokers[i:] + slice_brokers[:i] for i in range(len(slice_brokers))]
 
 
 def _build_config_maps(
