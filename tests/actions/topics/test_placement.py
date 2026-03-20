@@ -1,17 +1,81 @@
-from collections import Counter, defaultdict
+from collections import Counter
 
 import pytest
 
 from sentry_kafka_management.actions.topics.placement import (
+    SLICE_SIZE,
     build_slices,
     compute_cluster_placement,
 )
 
-# 3 slices: A=[0,1,2], B=[3,4,5], C=[6,7,8]
-SLICES_3 = [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+
+def _make_broker_id_mapping(
+    num_slices: int, zones: tuple[str, ...] = ("zone-a", "zone-b", "zone-c")
+) -> dict[str, int]:
+    """Build a broker_id_mapping with `num_slices` brokers per zone."""
+    mapping: dict[str, int] = {}
+    broker_id = 0
+    for _ in range(num_slices):
+        for zone in zones:
+            fqdn = f"kafka-{broker_id}.{zone}.c.project.internal:9092"
+            mapping[fqdn] = broker_id
+            broker_id += 1
+    return mapping
 
 
-def test_build_slices_parses_zone_from_broker_endpoint() -> None:
+PLACEMENT_SCENARIOS = [
+    pytest.param(
+        1,
+        {
+            "topic-a": 64,
+            "topic-b": 1,
+            "topic-c": 32,
+            "topic-d": 1,
+            "topic-e": 64,
+            "topic-f": 16,
+        },
+        id="1-slice-6-topics",
+    ),
+    pytest.param(
+        2,
+        {
+            "topic-a": 16,
+            "topic-b": 1,
+            "topic-c": 32,
+            "topic-d": 1,
+            "topic-e": 64,
+            "topic-f": 16,
+        },
+        id="2-slices-6-topics",
+    ),
+    pytest.param(
+        3,
+        {
+            "topic-a": 64,
+            "topic-b": 128,
+            "topic-c": 32,
+            "topic-d": 1,
+            "topic-e": 64,
+            "topic-f": 16,
+        },
+        id="3-slices-6-topics",
+    ),
+    pytest.param(
+        4,
+        {
+            "topic-a": 32,
+            "topic-b": 1,
+            "topic-c": 64,
+            "topic-d": 16,
+            "topic-e": 64,
+            "topic-f": 1,
+        },
+        id="4-slices-6-topics",
+    ),
+]
+
+
+def test_parses_zone_from_broker_endpoint() -> None:
     broker_id_mapping = {
         "kafka-0.zone-a.c.project.internal:9092": 0,
         "kafka-1.zone-c.c.project.internal:9092": 1,
@@ -20,16 +84,15 @@ def test_build_slices_parses_zone_from_broker_endpoint() -> None:
         "kafka-4.zone-b.c.project.internal:9092": 4,
         "kafka-5.zone-c.c.project.internal:9092": 5,
     }
-
     assert build_slices(broker_id_mapping) == [[0, 3, 1], [2, 4, 5]]
 
 
-def test_build_slices_invalid_broker_endpoint() -> None:
+def test_invalid_broker_endpoint() -> None:
     with pytest.raises(ValueError):
         build_slices({"no-zone-here": 0, "kafka-1.zone-a.c.project.internal:9092": 1})
 
 
-def test_build_slices_uneven_zones() -> None:
+def test_uneven_zones() -> None:
     broker_id_mapping = {
         "kafka-0.zone-a.c.project.internal:9092": 0,
         "kafka-1.zone-a.c.project.internal:9092": 1,
@@ -39,115 +102,134 @@ def test_build_slices_uneven_zones() -> None:
         build_slices(broker_id_mapping)
 
 
-def test_all_partitions_get_full_replica_list() -> None:
-    """Every partition should have a 3-broker replica list."""
-    current = {"topic": {i: [SLICES_3[i % 3][0]] for i in range(12)}}
-    result = compute_cluster_placement(SLICES_3, current)
-    for _, replicas in result["topic"].items():
-        assert len(replicas) == 3
+def test_slice_count_matches_brokers_per_zone() -> None:
+    broker_id_mapping = _make_broker_id_mapping(num_slices=3)
+    slices = build_slices(broker_id_mapping)
+    assert len(slices) == 3
+    for broker_slice in slices:
+        assert len(broker_slice) == SLICE_SIZE
 
 
-def test_replicas_within_slices_and_even_leaders() -> None:
-    """All replicas must come from the same slice, with leaders evenly distributed."""
-    current = {
-        "topic-a": {i: [SLICES_3[i % 3][0]] for i in range(64)},
-        "topic-b": {i: [SLICES_3[i % 3][0]] for i in range(9)},
-        "topic-c": {i: [SLICES_3[i % 3][0]] for i in range(16)},
-    }
-    result = compute_cluster_placement(SLICES_3, current)
+@pytest.mark.parametrize("num_slices, topic_partitions", PLACEMENT_SCENARIOS)
+def test_every_partition_has_full_replica_list(
+    num_slices: int,
+    topic_partitions: dict[str, int],
+) -> None:
+    broker_id_mapping = _make_broker_id_mapping(num_slices)
+    result = compute_cluster_placement(broker_id_mapping, topic_partitions)
 
-    slice_sets = [set(slice_brokers) for slice_brokers in SLICES_3]
+    assert len(result) == len(topic_partitions)
+    for placement, (expected_topic, expected_count) in zip(
+        result, sorted(topic_partitions.items())
+    ):
+        assert placement.topic == expected_topic
+        assert len(placement.partitions) == expected_count
+        for assignment in placement.partitions:
+            assert len(assignment) == SLICE_SIZE
+
+
+@pytest.mark.parametrize("num_slices, topic_partitions", PLACEMENT_SCENARIOS)
+def test_replicas_always_within_same_slice(
+    num_slices: int,
+    topic_partitions: dict[str, int],
+) -> None:
+    broker_id_mapping = _make_broker_id_mapping(num_slices)
+    slices = build_slices(broker_id_mapping)
+    slice_sets = [set(broker_slice) for broker_slice in slices]
+
+    result = compute_cluster_placement(broker_id_mapping, topic_partitions)
+
+    for placement in result:
+        for assignment in placement.partitions:
+            assert any(
+                set(assignment).issubset(slice_set) for slice_set in slice_sets
+            ), f"Replicas {assignment} not contained in any slice"
+
+
+@pytest.mark.parametrize("num_slices, topic_partitions", PLACEMENT_SCENARIOS)
+def test_even_leader_distribution(
+    num_slices: int,
+    topic_partitions: dict[str, int],
+) -> None:
+    broker_id_mapping = _make_broker_id_mapping(num_slices)
+    result = compute_cluster_placement(broker_id_mapping, topic_partitions)
+
     leader_counts: Counter[int] = Counter()
+    for placement in result:
+        for assignment in placement.partitions:
+            leader_counts[assignment[0]] += 1
 
-    for topic in result:
-        for replicas in result[topic].values():
-            assert any(set(replicas).issubset(slice_set) for slice_set in slice_sets)
-            leader_counts[replicas[0]] += 1
-
-    assert max(leader_counts.values()) - min(leader_counts.values()) <= 1
-
-
-def test_unplaced_partitions_go_to_least_common_config() -> None:
-    """Unplaced partitions get assigned to least common config."""
-    # 8 partitions, 1 slice [0,1,2]
-    # P0=[0,1,2](A1), P1=[1,2,0](A2), P2=[2,0,1](A3), P3=[0,4,8](unplaced)
-    # P4=[1,2,0](A2), P5=[0,1,2](A1), P6=[2,0,1](A3), P7=[0,1,2](A1)
-    # Counts: A1=3, A2=2, A3=2, so P3 should get A2 or A3 (least common, first wins = A2)
-    slices = [[0, 1, 2]]
-    current = {
-        "topic": {
-            0: [0, 1, 2],
-            1: [1, 2, 0],
-            2: [2, 0, 1],
-            3: [0, 4, 8],
-            4: [1, 2, 0],
-            5: [0, 1, 2],
-            6: [2, 0, 1],
-            7: [0, 1, 2],
-        }
-    }
-    result = compute_cluster_placement(slices, current)
-    assert result["topic"][3] in ([1, 2, 0], [2, 0, 1])
+    if leader_counts:
+        assert max(leader_counts.values()) - min(leader_counts.values()) <= SLICE_SIZE
 
 
-def test_expansion_rebalance() -> None:
-    """Adding a slice moves partitions from overloaded to underloaded."""
-    # 2 slices A=[0,1,2], B=[3,4,5]
-    # 2 topics, 4 partitions each
-    current = {
-        "topic-1": {0: [0, 1, 2], 1: [3, 4, 5], 2: [1, 2, 0], 3: [4, 5, 3]},
-        "topic-2": {0: [2, 0, 1], 1: [5, 3, 4], 2: [0, 1, 2], 3: [3, 4, 5]},
-    }
-    # Add slice C=[6,7,8] -> becomes SLICES_3
-    result = compute_cluster_placement(SLICES_3, current)
+@pytest.mark.parametrize("num_slices, topic_partitions", PLACEMENT_SCENARIOS)
+def test_even_slice_distribution(
+    num_slices: int,
+    topic_partitions: dict[str, int],
+) -> None:
+    """Partitions should be spread evenly across slices."""
+    broker_id_mapping = _make_broker_id_mapping(num_slices)
+    slices = build_slices(broker_id_mapping)
+    slice_sets = [set(broker_slice) for broker_slice in slices]
 
-    # Count partitions per slice
-    slice_sets = [set(s) for s in SLICES_3]
-    slice_counts: dict[int, int] = defaultdict(int)
-    for topic in result:
-        for replicas in result[topic].values():
+    result = compute_cluster_placement(broker_id_mapping, topic_partitions)
+
+    slice_counts: Counter[int] = Counter()
+    for placement in result:
+        for assignment in placement.partitions:
             for slice_index, slice_set in enumerate(slice_sets):
-                if replicas[0] in slice_set:
+                if assignment[0] in slice_set:
                     slice_counts[slice_index] += 1
                     break
-    # A=3, B=3, C=2
-    assert sorted(slice_counts.values()) == [2, 3, 3]
+
+    if slice_counts:
+        assert max(slice_counts.values()) - min(slice_counts.values()) <= SLICE_SIZE
 
 
-def test_no_change_when_balanced() -> None:
-    """If slices are already balanced, no partitions should move slices."""
-    current = {
-        "t": {
-            0: [0, 1, 2],
-            1: [1, 2, 0],
-            2: [2, 0, 1],
-            3: [3, 4, 5],
-            4: [4, 5, 3],
-            5: [5, 3, 4],
-            6: [6, 7, 8],
-            7: [7, 8, 6],
-            8: [8, 6, 7],
-        }
-    }
-    result = compute_cluster_placement(SLICES_3, current)
-    # Every partition should keep its current config
-    for partition in current["t"]:
-        assert result["t"][partition] == current["t"][partition]
+@pytest.mark.parametrize("num_slices, topic_partitions", PLACEMENT_SCENARIOS)
+def test_no_duplicate_brokers_in_assignment(
+    num_slices: int,
+    topic_partitions: dict[str, int],
+) -> None:
+    """Each partition's replica list should have no duplicate broker IDs."""
+    broker_id_mapping = _make_broker_id_mapping(num_slices)
+    result = compute_cluster_placement(broker_id_mapping, topic_partitions)
+
+    for placement in result:
+        for assignment in placement.partitions:
+            assert len(assignment) == len(set(assignment))
 
 
-def test_even_leader_distribution() -> None:
-    """Leaders should be evenly distributed across brokers."""
-    current = {
-        "topic-a": {i: [SLICES_3[i % 3][0]] for i in range(64)},
-        "topic-b": {i: [SLICES_3[i % 3][0]] for i in range(1)},
-        "topic-c": {i: [SLICES_3[i % 3][0]] for i in range(32)},
-        "topic-d": {i: [SLICES_3[i % 3][0]] for i in range(1)},
-        "topic-e": {i: [SLICES_3[i % 3][0]] for i in range(64)},
-        "topic-f": {i: [SLICES_3[i % 3][0]] for i in range(16)},
-    }
-    result = compute_cluster_placement(SLICES_3, current)
-    leader_counts: Counter[int] = Counter()
-    for topic in result:
-        for reps in result[topic].values():
-            leader_counts[reps[0]] += 1
-    assert max(leader_counts.values()) - min(leader_counts.values()) <= 1
+@pytest.mark.parametrize("num_slices, topic_partitions", PLACEMENT_SCENARIOS)
+def test_deterministic(
+    num_slices: int,
+    topic_partitions: dict[str, int],
+) -> None:
+    broker_id_mapping = _make_broker_id_mapping(num_slices)
+    result_1 = compute_cluster_placement(broker_id_mapping, topic_partitions)
+    result_2 = compute_cluster_placement(broker_id_mapping, topic_partitions)
+    assert result_1 == result_2
+
+
+def test_empty_topics() -> None:
+    broker_id_mapping = _make_broker_id_mapping(num_slices=3)
+    result = compute_cluster_placement(broker_id_mapping, {})
+    assert result == []
+
+
+def test_round_robin_across_slices() -> None:
+    """First 9 partitions should cycle through all 3 slices, 3 partitions each."""
+    broker_id_mapping = _make_broker_id_mapping(num_slices=3)
+    slices = build_slices(broker_id_mapping)
+    slice_sets = [set(broker_slice) for broker_slice in slices]
+
+    result = compute_cluster_placement(broker_id_mapping, {"topic-a": 9})
+
+    # Partitions 0-2 go to slice 0, 3-5 to slice 1, 6-8 to slice 2
+    for partition_index, assignment in enumerate(result[0].partitions):
+        expected_slice = (partition_index // SLICE_SIZE) % len(slices)
+        assert set(assignment).issubset(slice_sets[expected_slice]), (
+            f"Partition {partition_index} assigned to wrong slice: "
+            f"got {assignment}, expected slice {expected_slice}"
+        )

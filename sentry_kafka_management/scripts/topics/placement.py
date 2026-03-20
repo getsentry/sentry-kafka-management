@@ -11,10 +11,7 @@ from sentry_kafka_management.actions.topics.describe import (
 from sentry_kafka_management.actions.topics.describe import (
     list_topics as list_topics_action,
 )
-from sentry_kafka_management.actions.topics.placement import (
-    build_slices,
-    compute_cluster_placement,
-)
+from sentry_kafka_management.actions.topics.placement import compute_cluster_placement
 from sentry_kafka_management.brokers import YamlKafkaConfig
 from sentry_kafka_management.connectors.admin import get_admin_client
 
@@ -22,7 +19,14 @@ from sentry_kafka_management.connectors.admin import get_admin_client
 @click.command()
 @click.option("-c", "--config", type=click.Path(exists=True, path_type=Path), required=True)
 @click.option("-n", "--cluster", required=True)
-def compute_topic_placement(config: Path, cluster: str) -> None:
+@click.option(
+    "-o",
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    required=True,
+    help="Directory to write per-topic YAML files.",
+)
+def compute_topic_placement(config: Path, cluster: str, output_dir: Path) -> None:
     """Compute partition placement for all topics in a cluster."""
     kafka_config = YamlKafkaConfig(config)
     cluster_config = kafka_config.get_clusters()[cluster]
@@ -40,29 +44,25 @@ def compute_topic_placement(config: Path, cluster: str) -> None:
         else:
             raise click.ClickException(f"Broker {broker} not found in cluster")
 
-    slices = build_slices(broker_id_mapping)
-
-    current: dict[str, dict[int, list[int]]] = {}
+    topic_partitions: dict[str, int] = {}
     for name in list_topics_action(client):
         partitions = describe_topic_partitions_action(client, name)
-        current[name] = {p["id"]: p["replicas"] for p in partitions}
+        topic_partitions[name] = len(partitions)
 
-    result = compute_cluster_placement(slices, current)
-    output_blocks: list[str] = []
-    for topic_name in sorted(result.keys()):
-        topic_partitions = result[topic_name]
-        static_assignments = [replicas for _, replicas in sorted(topic_partitions.items())]
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    result = compute_cluster_placement(broker_id_mapping, topic_partitions)
+    for topic_placement in result:
         lines = [
-            f"topic: {topic_name}",
-            "---",
             f"cluster: {cluster}",
-            f"partitions: {len(static_assignments)}",
+            f"partitions: {len(topic_placement.partitions)}",
             "placement:",
             "  staticAssignments:",
         ]
-        for replicas in static_assignments:
-            lines.append(f"  - [{', '.join(str(r) for r in replicas)}]")
+        for assignment in topic_placement.partitions:
+            lines.append(f"  - [{', '.join(str(r) for r in assignment)}]")
         lines.append("  strategy: static")
-        output_blocks.append("\n".join(lines))
 
-    click.echo("\n---\n".join(output_blocks))
+        file_path = output_dir / f"{topic_placement.topic}.yaml"
+        file_path.write_text("\n".join(lines) + "\n")
+        click.echo(f"Wrote {file_path}")
