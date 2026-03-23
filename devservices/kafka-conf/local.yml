@@ -4,9 +4,6 @@
   brokers:
     - 127.0.0.1:9092
     # - kafka-kafka-1:9094
-    - kafka.zone-a.c.project.internal:9092
-    - kafka.zone-b.c.project.internal:9094
-    - kafka.zone-c.c.project.internal:9095
   security_protocol: PLAINTEXT
   sasl_mechanism: null
   sasl_username: null
