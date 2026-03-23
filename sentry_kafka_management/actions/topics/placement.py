@@ -22,15 +22,16 @@ The algorithm:
 1. Build slices from broker FQDNs (which contain zone information).
    Slices are built deterministically by sorting zones and broker IDs.
 2. For each topic, give an assignment to each partition round-robin:
-   slice i, partition j -> slice (i // SLICE_SIZE) % num_slices, assignment p % SLICE_SIZE
+   slice i, partition j -> slice: i % num_slices, assignment: (j // num_slices) % SLICE_SIZE
 
-For example, with num_slices = 2 and N partitions, where N is the total partitions on the
-cluster (not the topic, as we want to balance partition leaders across the cluster), the
-assignments would be:
-    Partition 0: slice 0, assignment 0
-    Partition 1: slice 0, assignment 1
-    Partition 2: slice 0, assignment 2
-    Partition 3: slice 1, assignment 0
+For example, with 3 slices and N partitions, where N is the total partitions on the
+cluster (not the topic, as we want to balance partition leaders across the cluster),
+the assignments would be:
+    Partition 0: slice 0, assignment 0 -> [0, 1, 2]
+    Partition 1: slice 1, assignment 0 -> [3, 4, 5]
+    Partition 2: slice 2, assignment 0 -> [6, 7, 8]
+    Partition 3: slice 0, assignment 1 -> [1, 2, 0]
+    Partition 4: slice 1, assignment 1 -> [4, 5, 3]
     ...
 
 When the cluster expands (new slices added), recomputing produces a new
@@ -79,8 +80,8 @@ def build_slices(broker_id_mapping: dict[str, int]) -> list[Slice]:
     slices: list[Slice] = []
     brokers_by_zone: dict[str, list[int]] = defaultdict(list)
 
-    for broker_str, broker_id in broker_id_mapping.items():
-        zone = get_broker_zone(broker_str)
+    for broker_hostname, broker_id in broker_id_mapping.items():
+        zone = get_broker_zone(broker_hostname)
         brokers_by_zone[zone].append(broker_id)
 
     # make result deterministic
@@ -89,12 +90,14 @@ def build_slices(broker_id_mapping: dict[str, int]) -> list[Slice]:
         brokers_by_zone[zone].sort()
 
     # all zones should have the same number of brokers
-    if not all(len(brokers_by_zone[z]) == len(brokers_by_zone[zones[0]]) for z in zones):
-        raise ValueError("All zones must have the same number of brokers")
-    else:
-        for slice_index in range(len(brokers_by_zone[zones[0]])):
-            slices.append([brokers_by_zone[z][slice_index] for z in zones])
+    for zone in zones:
+        if len(brokers_by_zone[zone]) != len(brokers_by_zone[zones[0]]):
+            raise ValueError("All zones must have the same number of brokers")
 
+    num_slices = len(brokers_by_zone[zones[0]])
+
+    for slice in range(num_slices):
+        slices.append([brokers_by_zone[zone][slice] for zone in zones])
     return slices
 
 
@@ -108,10 +111,12 @@ def compute_cluster_placement(
     Each partition is assigned to a slice round-robin, and the assignment
     is rotated within the slice to distribute leaders evenly.
 
-    Partition 0 topic 0: slice 0, offset 0
-    Partition 0 topic 1: slice 1, offset 0
-    Partition 0 topic 2: slice 2, offset 0
-    partition 0 topic 3: slice 0, offset 1
+    Partition 0: slice 0, assignment 0 -> [0, 1, 2]
+    Partition 1: slice 1, assignment 0 -> [3, 4, 5]
+    Partition 2: slice 2, assignment 0 -> [6, 7, 8]
+    Partition 3: slice 0, assignment 1 -> [1, 2, 0]
+    Partition 4: slice 1, assignment 1 -> [4, 5, 3]
+    ...
     """
     slices = build_slices(broker_id_mapping)
 
@@ -122,8 +127,8 @@ def compute_cluster_placement(
     for topic, partition_count in sorted(topic_partitions.items()):
         assignments: list[Assignment] = []
         for _ in range(partition_count):
-            slice = (count // SLICE_SIZE) % num_slices
-            offset = count % SLICE_SIZE
+            slice = count % num_slices
+            offset = (count // num_slices) % SLICE_SIZE
             assignments.append(_get_assignment(slices[slice], offset))
             count += 1
         cluster_assignments.append(TopicPlacement(topic, assignments))

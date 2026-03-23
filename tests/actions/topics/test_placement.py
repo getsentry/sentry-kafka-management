@@ -219,17 +219,13 @@ def test_empty_topics() -> None:
 
 
 def test_round_robin_across_slices() -> None:
-    """First 9 partitions should cycle through all 3 slices, 3 partitions each."""
     broker_id_mapping = _make_broker_id_mapping(num_slices=3)
     slices = build_slices(broker_id_mapping)
     slice_sets = [set(broker_slice) for broker_slice in slices]
+    expected_slices = [0, 1, 2, 0, 1, 2, 0, 1, 2]
 
-    result = compute_cluster_placement(broker_id_mapping, {"topic-a": 9})
+    result = compute_cluster_placement(broker_id_mapping, {"topic-a": 4, "topic-b": 5})
 
-    # Partitions 0-2 go to slice 0, 3-5 to slice 1, 6-8 to slice 2
     for partition_index, assignment in enumerate(result[0].partitions):
-        expected_slice = (partition_index // SLICE_SIZE) % len(slices)
-        assert set(assignment).issubset(slice_sets[expected_slice]), (
-            f"Partition {partition_index} assigned to wrong slice: "
-            f"got {assignment}, expected slice {expected_slice}"
-        )
+        expected_slice = expected_slices[partition_index]
+        assert set(assignment).issubset(slice_sets[expected_slice])
