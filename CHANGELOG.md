@@ -1,3 +1,9 @@
+## 0.1.8
+
+### New Features ✨
+
+- (topics) Add action/script for triggering leader election by @bmckerry in [#67](https://github.com/getsentry/sentry-kafka-management/pull/67)
+
 ## 0.1.7
 
 ### New Features ✨
