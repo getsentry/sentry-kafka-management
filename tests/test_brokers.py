@@ -17,7 +17,11 @@ def test_load_clusters_only(temp_config: Path) -> None:
     # Verify cluster1 configuration
     cluster1 = clusters["cluster1"]
     assert isinstance(cluster1, dict)
-    assert cluster1["brokers"] == ["broker1:9092", "broker2:9092"]
+    assert cluster1["brokers"] == [
+        "kafka-0.zone-a.c.project.internal:9092",
+        "kafka-1.zone-b.c.project.internal:9092",
+        "kafka-2.zone-c.c.project.internal:9092",
+    ]
     assert cluster1["security_protocol"] == "PLAINTEXT"
     assert cluster1["sasl_mechanism"] is None
     assert cluster1["sasl_username"] is None
@@ -26,7 +30,11 @@ def test_load_clusters_only(temp_config: Path) -> None:
     # Verify cluster2 configuration
     cluster2 = clusters["cluster2"]
     assert isinstance(cluster2, dict)
-    assert cluster2["brokers"] == ["broker3:9092", "broker4:9092"]
+    assert cluster2["brokers"] == [
+        "kafka-3.zone-a.c.project.internal:9092",
+        "kafka-4.zone-b.c.project.internal:9092",
+        "kafka-5.zone-c.c.project.internal:9092",
+    ]
     assert cluster2["security_protocol"] == "SASL_SSL"
     assert cluster2["sasl_mechanism"] == "PLAIN"
     assert cluster2["sasl_username"] == "user1"
