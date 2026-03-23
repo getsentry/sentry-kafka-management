@@ -15,12 +15,15 @@ def test_broker_not_found_in_cluster(
 ) -> None:
     mock_get_admin.return_value = MagicMock()
     mock_describe_cluster.return_value = [
-        {"id": "0", "host": "other-broker", "port": 9092, "rack": "zone-a"},
+        {"id": "0", "host": "other-broker", "port": 9092},
     ]
 
     runner = CliRunner()
-    result = runner.invoke(
-        compute_topic_placement, ["--config", str(temp_config), "--cluster", "cluster1"]
-    )
+    with runner.isolated_filesystem() as tmp:
+        result = runner.invoke(
+            compute_topic_placement,
+            ["--config", str(temp_config), "--cluster", "cluster1", "--output-dir", tmp],
+        )
 
-    assert result.exit_code != 0
+    assert result.exit_code == 1
+    assert "not found in cluster" in result.output
