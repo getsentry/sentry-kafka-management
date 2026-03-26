@@ -43,7 +43,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import NamedTuple
 
-from sentry_kafka_management.actions.brokers.parse import get_broker_zone
+from sentry_kafka_management.actions.brokers.parser import get_broker_zone
 
 SLICE_SIZE = 3
 
