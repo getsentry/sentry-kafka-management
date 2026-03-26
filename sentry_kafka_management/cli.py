@@ -17,7 +17,9 @@ from sentry_kafka_management.scripts.clusters import (
 from sentry_kafka_management.scripts.local.filesystem import (
     remove_recorded_dynamic_configs,
 )
-from sentry_kafka_management.scripts.local.manage_configs import update_config_state
+from sentry_kafka_management.scripts.local.manage_configs import (
+    update_config_state,
+)
 from sentry_kafka_management.scripts.topics.describe import (
     describe_topic_partitions,
     list_offsets,
@@ -26,18 +28,12 @@ from sentry_kafka_management.scripts.topics.describe import (
 from sentry_kafka_management.scripts.topics.healthcheck import (
     healthcheck_cluster_topics,
 )
-from sentry_kafka_management.scripts.topics.partitions import (
-    elect_partition_leaders,
-)
-from sentry_kafka_management.scripts.topics.placement import compute_topic_placement
 
 COMMANDS = [
     apply_configs,
-    compute_topic_placement,
     describe_topic_partitions,
     describe_broker_configs,
     describe_cluster,
-    elect_partition_leaders,
     get_cluster_controller,
     healthcheck_cluster_topics,
     list_topics,
