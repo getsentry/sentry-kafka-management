@@ -34,8 +34,12 @@ the assignments would be:
     Partition 4: slice 1, assignment 1 -> [4, 5, 3]
     ...
 
-When the cluster expands (new slices added), recomputing produces a new
-assignment. Some partitions naturally move to the new slices.
+Limitations:
+1. Topic-order sensitivity: a per-topic shift is derived from sorted topic names.
+   Adding/removing/renaming a topic can change assignments for later topics.
+2. Topology sensitivity: when slices change (for example, brokers are added and
+   new slices appear), recomputing produces a new assignment and some partitions
+   naturally move to different slices.
 """
 
 from __future__ import annotations
@@ -59,17 +63,6 @@ class TopicPlacement(NamedTuple):
 
     topic: str
     partitions: list[Assignment]
-
-
-def _get_assignment(brokers: Slice, offset: int) -> list[int]:
-    """
-    Get a valid assignment for a given slice and offset.
-
-    For example, if the slice is [0, 1, 2] and the assignments that could be
-    returned are [0, 1, 2], [1, 2, 0], or [2, 0, 1].
-    """
-    offset = offset % len(brokers)
-    return brokers[offset:] + brokers[:offset]
 
 
 def build_slices(broker_id_mapping: dict[str, int]) -> list[Slice]:
@@ -117,20 +110,25 @@ def compute_cluster_placement(
     Partition 3: slice 0, assignment 1 -> [1, 2, 0]
     Partition 4: slice 1, assignment 1 -> [4, 5, 3]
     ...
+
+    Limitations:
+    - The per-topic shift depends on sorted topic order. Adding/removing/renaming
+      topics can shift assignments for lexicographically later topics.
+    - Changing slice topology (for example, adding slices) can reassign partitions.
     """
     slices = build_slices(broker_id_mapping)
 
     num_slices = len(slices)
     cluster_assignments: list[TopicPlacement] = []
-    count = 0
+    shift = 0
 
     for topic, partition_count in sorted(topic_partitions.items()):
-        assignments: list[Assignment] = []
-        for _ in range(partition_count):
-            slice = count % num_slices
-            offset = (count // num_slices) % SLICE_SIZE
-            assignments.append(_get_assignment(slices[slice], offset))
-            count += 1
+        assignments: list[Assignment] = [[] for _ in range(partition_count)]
+        for i in range(partition_count):
+            slice = (i + shift) % num_slices
+            offset = ((i + shift) // num_slices) % SLICE_SIZE
+            assignments[i] = slices[slice][offset:] + slices[slice][:offset]
         cluster_assignments.append(TopicPlacement(topic, assignments))
+        shift += 1
 
     return cluster_assignments
