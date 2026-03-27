@@ -18,7 +18,7 @@ def get_default_partitions(shared_config_path: Path) -> int:
     defaults_path = shared_config_path / "topics" / "defaults" / "defaults.yaml"
     with open(defaults_path, "r") as f:
         config = yaml.safe_load(f)
-    return config["partitions"]
+    return int(config["partitions"])
 
 
 def get_topic_partitions(shared_config_path: Path, topic_name: str) -> int | None:
@@ -28,7 +28,8 @@ def get_topic_partitions(shared_config_path: Path, topic_name: str) -> int | Non
         return None
     with open(topic_path, "r") as f:
         config = yaml.safe_load(f)
-    return config.get("partitions")
+    partitions = config.get("partitions")
+    return int(partitions) if partitions is not None else None
 
 
 def parse_topic_partitions(
