@@ -21,25 +21,30 @@ zones per Kafka cluster. Each assignment in a slice has the partition leader in 
 The algorithm:
 1. Build slices from broker FQDNs (which contain zone information).
    Slices are built deterministically by sorting zones and broker IDs.
-2. For each topic, give an assignment to each partition round-robin:
-   slice i, partition j -> slice: i % num_slices, assignment: (j // num_slices) % SLICE_SIZE
+2. For each topic, give an assignment to each partition round-robin, with a per-topic shift:
+   topic i, partition j
+   -> slice (i + j) % num_slices,
+      assignment: ((i + j) // num_slices) % SLICE_SIZE
 
-For example, with 3 slices and N partitions, where N is the total partitions on the
-cluster (not the topic, as we want to balance partition leaders across the cluster),
-the assignments would be:
-    Partition 0: slice 0, assignment 0 -> [0, 1, 2]
-    Partition 1: slice 1, assignment 0 -> [3, 4, 5]
-    Partition 2: slice 2, assignment 0 -> [6, 7, 8]
-    Partition 3: slice 0, assignment 1 -> [1, 2, 0]
-    Partition 4: slice 1, assignment 1 -> [4, 5, 3]
+For example, with 3 slices the assignments would be:
+    Topic 0, Partition 0: slice 0, assignment 0 -> [0, 1, 2]
+    Topic 0, Partition 1: slice 1, assignment 0 -> [3, 4, 5]
+    Topic 0, Partition 2: slice 2, assignment 0 -> [6, 7, 8]
+    Topic 0, Partition 3: slice 0, assignment 1 -> [1, 2, 0]
+    Topic 0, Partition 4: slice 1, assignment 1 -> [4, 5, 3]
+    ...
+    Topic 1, Partition 0: slice 1, assignment 0 -> [3, 4, 5]
+    Topic 1, Partition 1: slice 2, assignment 0 -> [6, 7, 8]
+    Topic 1, Partition 2: slice 0, assignment 1 -> [1, 2, 0]
+    Topic 1, Partition 3: slice 1, assignment 1 -> [4, 5, 3]
+    Topic 1, Partition 4: slice 2, assignment 1 -> [7, 8, 6]
     ...
 
 Limitations:
 1. Topic-order sensitivity: a per-topic shift is derived from sorted topic names.
    Adding/removing/renaming a topic can change assignments for later topics.
-2. Topology sensitivity: when slices change (for example, brokers are added and
-   new slices appear), recomputing produces a new assignment and some partitions
-   naturally move to different slices.
+2. Topology sensitivity: when add a new slice, recomputing produces a new assignment
+   and partitions will move to different slices.
 """
 
 from __future__ import annotations
@@ -100,35 +105,20 @@ def compute_cluster_placement(
 ) -> list[TopicPlacement]:
     """
     Compute partition assignments for all topics in a cluster.
-
-    Each partition is assigned to a slice round-robin, and the assignment
-    is rotated within the slice to distribute leaders evenly.
-
-    Partition 0: slice 0, assignment 0 -> [0, 1, 2]
-    Partition 1: slice 1, assignment 0 -> [3, 4, 5]
-    Partition 2: slice 2, assignment 0 -> [6, 7, 8]
-    Partition 3: slice 0, assignment 1 -> [1, 2, 0]
-    Partition 4: slice 1, assignment 1 -> [4, 5, 3]
-    ...
-
-    Limitations:
-    - The per-topic shift depends on sorted topic order. Adding/removing/renaming
-      topics can shift assignments for lexicographically later topics.
-    - Changing slice topology (for example, adding slices) can reassign partitions.
     """
     slices = build_slices(broker_id_mapping)
+    topic_order = sorted(topic_partitions.keys())
 
     num_slices = len(slices)
     cluster_assignments: list[TopicPlacement] = []
-    shift = 0
 
-    for topic, partition_count in sorted(topic_partitions.items()):
-        assignments: list[Assignment] = [[] for _ in range(partition_count)]
-        for i in range(partition_count):
-            slice = (i + shift) % num_slices
-            offset = ((i + shift) // num_slices) % SLICE_SIZE
-            assignments[i] = slices[slice][offset:] + slices[slice][:offset]
-        cluster_assignments.append(TopicPlacement(topic, assignments))
-        shift += 1
+    for topic_idx, topic_name in enumerate(topic_order):
+        partition_count = topic_partitions[topic_name]
+        assignments: list[Assignment] = []
+        for partition_idx in range(partition_count):
+            slice = (topic_idx + partition_idx) % num_slices
+            rotation = ((topic_idx + partition_idx) // num_slices) % SLICE_SIZE
+            assignments.append(slices[slice][rotation:] + slices[slice][:rotation])
+        cluster_assignments.append(TopicPlacement(topic_name, assignments))
 
     return cluster_assignments

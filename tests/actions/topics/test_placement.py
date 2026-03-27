@@ -159,8 +159,7 @@ def test_even_leader_distribution(
         for assignment in placement.partitions:
             leader_counts[assignment[0]] += 1
 
-    if leader_counts:
-        assert max(leader_counts.values()) - min(leader_counts.values()) <= SLICE_SIZE
+    assert max(leader_counts.values()) - min(leader_counts.values()) <= 5
 
 
 @pytest.mark.parametrize("num_slices, topic_partitions", PLACEMENT_SCENARIOS)
@@ -184,7 +183,7 @@ def test_even_slice_distribution(
                     break
 
     if slice_counts:
-        assert max(slice_counts.values()) - min(slice_counts.values()) <= SLICE_SIZE
+        assert max(slice_counts.values()) - min(slice_counts.values()) <= 3
 
 
 @pytest.mark.parametrize("num_slices, topic_partitions", PLACEMENT_SCENARIOS)
