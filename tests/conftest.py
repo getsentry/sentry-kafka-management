@@ -14,11 +14,7 @@ def temp_config() -> Generator[Path, None, None]:
     config = [
         {
             "name": "cluster1",
-            "brokers": [
-                "kafka-0.zone-a.c.project.internal:9092",
-                "kafka-1.zone-b.c.project.internal:9092",
-                "kafka-2.zone-c.c.project.internal:9092",
-            ],
+            "brokers": ["broker1:9092", "broker2:9092"],
             "security_protocol": "PLAINTEXT",
             "sasl_mechanism": None,
             "sasl_username": None,
@@ -42,11 +38,7 @@ def temp_config() -> Generator[Path, None, None]:
         },
         {
             "name": "cluster2",
-            "brokers": [
-                "kafka-3.zone-a.c.project.internal:9092",
-                "kafka-4.zone-b.c.project.internal:9092",
-                "kafka-5.zone-c.c.project.internal:9092",
-            ],
+            "brokers": ["broker3:9092", "broker4:9092"],
             "security_protocol": "SASL_SSL",
             "sasl_mechanism": "PLAIN",
             "sasl_username": "user1",
