@@ -28,12 +28,16 @@ from sentry_kafka_management.scripts.topics.describe import (
 from sentry_kafka_management.scripts.topics.healthcheck import (
     healthcheck_cluster_topics,
 )
+from sentry_kafka_management.scripts.topics.partitions import (
+    elect_partition_leaders,
+)
 
 COMMANDS = [
     apply_configs,
     describe_topic_partitions,
     describe_broker_configs,
     describe_cluster,
+    elect_partition_leaders,
     get_cluster_controller,
     healthcheck_cluster_topics,
     list_topics,
