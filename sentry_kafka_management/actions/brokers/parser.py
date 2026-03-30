@@ -17,7 +17,7 @@ def get_broker_id(fqdn: str) -> int:
     Get the broker ID from a broker FQDN.
     FQDN follows the GCP Zonal DNS format: INSTANCE_NAME-<id>.ZONE.c.PROJECT_ID.internal
     """
-    match = re.match(r"^.+-(\d+)\.", fqdn)
+    match = re.match(r"^[^.]+-(\d+)\.", fqdn)
     if not match:
         raise ValueError(f"Invalid broker FQDN: {fqdn}")
     return int(match.group(1))

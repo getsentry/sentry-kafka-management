@@ -36,6 +36,7 @@ def test_get_broker_zone_invalid(fqdn: str) -> None:
         ("kafka-0.zone-a.c.project.internal:9092", 0),
         ("kafka-1.zone-b.c.project.internal:9092", 1),
         ("kafka-spans-42.us-central1-c.c.project.internal:9092", 42),
+        ("kafka-0.us-east-1.c.project.internal:9092", 0),
     ],
 )
 def test_get_broker_id(fqdn: str, expected_id: int) -> None:
