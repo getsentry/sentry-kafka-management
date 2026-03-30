@@ -27,7 +27,7 @@ def get_topic_partitions(shared_config_path: Path, topic_name: str) -> int | Non
     if not topic_path.exists():
         return None
     with open(topic_path, "r") as f:
-        config = yaml.safe_load(f)
+        config = yaml.safe_load(f) or {}
     partitions = config.get("partitions")
     return int(partitions) if partitions is not None else None
 
@@ -67,6 +67,7 @@ def parse_topic_partitions(
 
 
 def count_leader_distribution(result: list[TopicPlacement]) -> None:
+    """Count the leader and replica distribution for a given placement."""
     leader_counts: dict[int, int] = defaultdict(int)
     replica_counts: dict[int, int] = defaultdict(int)
     for topic in result:
