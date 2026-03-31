@@ -57,6 +57,11 @@ from sentry_kafka_management.scripts.config_helpers import get_cluster_config
     is_flag=True,
     help="Mutes some unnecessary output by the script",
 )
+@click.option(
+    "--skip-configs",
+    default=None,
+    help="Comma-separated broker config names to skip (no apply or remove changes)",
+)
 def update_config_state(
     config: Path,
     cluster: str,
@@ -65,6 +70,7 @@ def update_config_state(
     sasl_credentials_file: Path | None = None,
     dry_run: bool = False,
     quiet: bool = False,
+    skip_configs: str | None = None,
 ) -> None:
     """
     Updates the config state of the current broker by looking at emergency configs,
@@ -87,12 +93,17 @@ def update_config_state(
     cluster_config = get_cluster_config(config, cluster)
     client = get_admin_client(cluster_config)
 
+    skip_config_names = frozenset(
+        name.strip() for name in (skip_configs or "").split(",") if name.strip()
+    )
+
     success, error = update_config_state_action(
         client,
         record_dir,
         properties_file,
         sasl_credentials_file=sasl_credentials_file,
         dry_run=dry_run,
+        skip_config_names=skip_config_names,
     )
 
     if success:

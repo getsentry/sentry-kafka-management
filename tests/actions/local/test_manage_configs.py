@@ -84,6 +84,49 @@ def test_update_config_state_emergency_priority(
 @patch("sentry_kafka_management.actions.local.manage_configs.remove_dynamic_configs")
 @patch("sentry_kafka_management.actions.local.manage_configs.apply_configs")
 @patch("sentry_kafka_management.actions.local.manage_configs.get_active_broker_configs")
+def test_update_config_state_skips_named_configs(
+    mock_get_configs: MagicMock,
+    mock_apply_configs: MagicMock,
+    mock_remove_configs: MagicMock,
+    mock_admin_client: MagicMock,
+    temp_record_dir: Path,
+    temp_properties_file: Path,
+) -> None:
+    """Skipped config names are not applied or removed."""
+    (temp_record_dir / "num.network.threads").write_text("1000")
+
+    temp_properties_file.write_text("broker.id=1001\n" "num.network.threads=5\n")
+
+    mock_get_configs.return_value = [
+        broker_id_config(),
+        Config(
+            config_name="num.network.threads",
+            is_sensitive=False,
+            active_value="3",
+            dynamic_value=None,
+            dynamic_default_value=None,
+            static_value=None,
+            default_value="3",
+        ),
+    ]
+
+    success, errors = update_config_state(
+        mock_admin_client,
+        temp_record_dir,
+        temp_properties_file,
+        dry_run=True,
+        skip_config_names=frozenset({"num.network.threads"}),
+    )
+
+    assert success == []
+    assert errors == []
+    mock_apply_configs.assert_not_called()
+    mock_remove_configs.assert_not_called()
+
+
+@patch("sentry_kafka_management.actions.local.manage_configs.remove_dynamic_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.apply_configs")
+@patch("sentry_kafka_management.actions.local.manage_configs.get_active_broker_configs")
 def test_update_config_state_apply_from_properties(
     mock_get_configs: MagicMock,
     mock_apply_configs: MagicMock,
