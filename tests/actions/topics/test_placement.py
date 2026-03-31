@@ -4,6 +4,7 @@ import pytest
 
 from sentry_kafka_management.actions.topics.placement import (
     SLICE_SIZE,
+    BrokerId,
     build_slices,
     compute_cluster_placement,
 )
@@ -11,9 +12,9 @@ from sentry_kafka_management.actions.topics.placement import (
 
 def _make_broker_id_mapping(
     num_slices: int, zones: tuple[str, ...] = ("zone-a", "zone-b", "zone-c")
-) -> dict[str, int]:
+) -> dict[str, BrokerId]:
     """Build a broker_id_mapping with `num_slices` brokers per zone."""
-    mapping: dict[str, int] = {}
+    mapping: dict[str, BrokerId] = {}
     broker_id = 0
     for _ in range(num_slices):
         for zone in zones:

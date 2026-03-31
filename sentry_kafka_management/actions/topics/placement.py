@@ -31,9 +31,11 @@ from sentry_kafka_management.actions.brokers.parser import get_broker_zone
 
 SLICE_SIZE = 3
 
-Slice = list[int]
+BrokerId = int
 
-Assignment = list[int]
+Slice = list[BrokerId]
+
+Assignment = list[BrokerId]
 
 
 class TopicPlacement(NamedTuple):
@@ -45,13 +47,13 @@ class TopicPlacement(NamedTuple):
     partitions: list[Assignment]
 
 
-def build_slices(broker_id_mapping: dict[str, int]) -> list[Slice]:
+def build_slices(broker_id_mapping: dict[str, BrokerId]) -> list[Slice]:
     """
     Given a mapping of broker FQDNs to broker IDs, build a list of slices,
     where each slice is a list of broker IDs (one per zone).
     """
     slices: list[Slice] = []
-    brokers_by_zone: dict[str, list[int]] = defaultdict(list)
+    brokers_by_zone: dict[str, list[BrokerId]] = defaultdict(list)
 
     for broker_hostname, broker_id in broker_id_mapping.items():
         zone = get_broker_zone(broker_hostname)
@@ -75,7 +77,7 @@ def build_slices(broker_id_mapping: dict[str, int]) -> list[Slice]:
 
 
 def compute_cluster_placement(
-    broker_id_mapping: dict[str, int],
+    broker_id_mapping: dict[str, BrokerId],
     topic_partitions: dict[str, int],
 ) -> list[TopicPlacement]:
     """
