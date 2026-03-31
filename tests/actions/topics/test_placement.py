@@ -2,9 +2,9 @@ from collections import Counter
 
 import pytest
 
+from sentry_kafka_management.actions.brokers.parser import BrokerId
 from sentry_kafka_management.actions.topics.placement import (
     SLICE_SIZE,
-    BrokerId,
     build_slices,
     compute_cluster_placement,
 )

@@ -6,7 +6,7 @@ from pathlib import Path
 import click
 import yaml
 
-from sentry_kafka_management.actions.brokers.parser import get_broker_id
+from sentry_kafka_management.actions.brokers.parser import BrokerId, get_broker_id
 from sentry_kafka_management.actions.topics.placement import (
     TopicPlacement,
     compute_cluster_placement,
@@ -67,9 +67,9 @@ def parse_topic_partitions(
 
 
 def count_leader_distribution(result: list[TopicPlacement]) -> None:
-    """Count the leader and replica distribution for a given placement."""
-    leader_counts: dict[int, int] = defaultdict(int)
-    replica_counts: dict[int, int] = defaultdict(int)
+    """Print how many partition leaders and total replicas each broker holds."""
+    leader_counts: dict[BrokerId, int] = defaultdict(int)
+    replica_counts: dict[BrokerId, int] = defaultdict(int)
     for topic in result:
         for assignment in topic.partitions:
             leader_counts[assignment[0]] += 1
@@ -96,7 +96,7 @@ def compute_topic_placement(
         config = yaml.safe_load(f)
     brokers = config[cluster_name]["brokers"]
 
-    broker_id_mapping = {}
+    broker_id_mapping: dict[str, BrokerId] = {}
     for broker in brokers:
         broker_id_mapping[broker] = get_broker_id(broker)
 

@@ -27,11 +27,9 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import NamedTuple
 
-from sentry_kafka_management.actions.brokers.parser import get_broker_zone
+from sentry_kafka_management.actions.brokers.parser import BrokerId, get_broker_zone
 
 SLICE_SIZE = 3
-
-BrokerId = int
 
 Slice = list[BrokerId]
 

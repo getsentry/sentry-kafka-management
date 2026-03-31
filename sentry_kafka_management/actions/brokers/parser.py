@@ -1,5 +1,7 @@
 import re
 
+BrokerId = int
+
 
 def get_broker_zone(fqdn: str) -> str:
     """
@@ -12,7 +14,7 @@ def get_broker_zone(fqdn: str) -> str:
         raise ValueError(f"Invalid broker FQDN: {fqdn}") from None
 
 
-def get_broker_id(fqdn: str) -> int:
+def get_broker_id(fqdn: str) -> BrokerId:
     """
     Get the broker ID from a broker FQDN.
     FQDN follows the GCP Zonal DNS format: INSTANCE_NAME-<id>.ZONE.c.PROJECT_ID.internal
