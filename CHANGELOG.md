@@ -1,3 +1,14 @@
+## 0.1.9
+
+### New Features ✨
+
+- (topics) Implement topic placement algorithm by @lvthanh03 in [#66](https://github.com/getsentry/sentry-kafka-management/pull/66)
+- Add shared config parsing and CLI for topic placement by @lvthanh03 in [#72](https://github.com/getsentry/sentry-kafka-management/pull/72)
+
+### Internal Changes 🔧
+
+- Pin GitHub Actions to full-length commit SHAs by @joshuarli in [#68](https://github.com/getsentry/sentry-kafka-management/pull/68)
+
 ## 0.1.8
 
 ### New Features ✨
