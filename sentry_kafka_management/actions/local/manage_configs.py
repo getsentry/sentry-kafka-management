@@ -23,6 +23,7 @@ def update_config_state(
     properties_file: Path,
     sasl_credentials_file: Path | None = None,
     dry_run: bool = False,
+    skip_config_names: frozenset[str] = frozenset(),
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Gets the desired configs from reading emergency configs from record_dir,
@@ -44,6 +45,7 @@ def update_config_state(
         record_dir: Path to the directory containing emergency configs
         properties_file: Path to the server.properties file
         dry_run: Whether to dry run the config changes, only performs validation
+        skip_config_names: Broker config keys to leave unchanged (no apply or remove)
     """
     emergency_configs = read_record_dir(record_dir)
 
@@ -59,6 +61,8 @@ def update_config_state(
     configs_to_apply: dict[str, str] = {}
 
     for config_name, config_value in emergency_configs.items():
+        if config_name in skip_config_names:
+            continue
         # Skip if dynamic value already matches the emergency config
         if config_name in kafka_configs:
             active_config = kafka_configs[config_name]
@@ -73,6 +77,8 @@ def update_config_state(
         configs_to_apply[config_name] = config_value
 
     for config_name, desired_value in properties_configs.items():
+        if config_name in skip_config_names:
+            continue
         if config_name in emergency_configs:
             continue
 
@@ -101,6 +107,8 @@ def update_config_state(
     configs_to_remove: list[str] = []
 
     for config_name, active_config in kafka_configs.items():
+        if config_name in skip_config_names:
+            continue
         if active_config.dynamic_value is None:
             continue
 
