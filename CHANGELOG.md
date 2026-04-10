@@ -1,3 +1,9 @@
+## 0.1.10
+
+### New Features ✨
+
+- Add the ability to skip specific configs by @evanh in [#70](https://github.com/getsentry/sentry-kafka-management/pull/70)
+
 ## 0.1.9
 
 ### New Features ✨
