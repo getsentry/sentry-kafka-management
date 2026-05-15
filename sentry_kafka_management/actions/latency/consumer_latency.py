@@ -185,8 +185,12 @@ def measure_cluster(
                 (tp.topic, tp.partition): int(tp.offset)
                 for tp in get_committed_offsets(admin, group_id)
             }
+            committed_topics = {topic for topic, _partition in committed_offsets}
 
             for topic in topics:
+                if topic not in committed_topics:
+                    continue
+
                 latency_ms = 0.0
                 oldest_outstanding_timestamp_ms: int | None = None
                 has_topic_latency = False
@@ -236,21 +240,18 @@ def measure_cluster(
 def get_configured_topic_names(config: YamlKafkaConfig, cluster_name: str) -> list[str]:
     try:
         return list(config.get_topics_config(cluster_name))
-    except KeyError as exc:
-        raise ValueError(
-            f"cluster {cluster_name!r} must include topics for latency metrics"
-        ) from exc
+    except KeyError:
+        return []
 
 
 def run_latency_metrics(
     config: YamlKafkaConfig,
     metrics: MetricsBackend,
 ) -> None:
-    clusters = config.get_clusters()
-    cluster_topics = {
-        cluster_name: get_configured_topic_names(config, cluster_name)
-        for cluster_name in clusters
-    }
-    for cluster_name, cluster_config in clusters.items():
-        for scan in measure_cluster(cluster_name, cluster_config, cluster_topics[cluster_name]):
+    for cluster_name, cluster_config in config.get_clusters().items():
+        topics = get_configured_topic_names(config, cluster_name)
+        if not topics:
+            continue
+
+        for scan in measure_cluster(cluster_name, cluster_config, topics):
             emit_topic_consumer_latency(metrics, scan)
