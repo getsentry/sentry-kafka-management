@@ -12,6 +12,7 @@ dependencies = [
   "confluent-kafka>=2.8.0",
   "PyYAML",
   "click>=8.0.0",
+  "datadog>=0.49.1",
 ]
 
 [project.scripts]
