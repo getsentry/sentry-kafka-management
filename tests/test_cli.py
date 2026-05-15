@@ -54,3 +54,37 @@ def test_cli_brokers_describe_configs(
     mock_action.assert_called_once()
     parsed_output = json.loads(result.output)
     assert parsed_output == mock_configs
+
+
+@patch("sentry_kafka_management.scripts.latency.consumer_latency.time.sleep")
+@patch("sentry_kafka_management.scripts.latency.consumer_latency.run_latency_metrics_action")
+@patch("sentry_kafka_management.scripts.latency.consumer_latency.DatadogMetricsBackend")
+@patch("sentry_kafka_management.scripts.latency.consumer_latency.YamlKafkaConfig")
+def test_cli_consumer_latency(
+    mock_yaml_config: MagicMock,
+    mock_metrics_backend: MagicMock,
+    mock_action: MagicMock,
+    mock_sleep: MagicMock,
+    temp_config: Path,
+) -> None:
+    """Test the consumer latency command."""
+    runner = click.testing.CliRunner()
+    mock_sleep.side_effect = KeyboardInterrupt
+
+    result = runner.invoke(
+        cli,
+        [
+            "consumer-latency",
+            "--config",
+            str(temp_config),
+            "--statsd-host",
+            "localhost",
+            "--statsd-port",
+            "8125",
+        ],
+    )
+
+    assert result.exit_code != 0
+    mock_yaml_config.assert_called_once_with(temp_config)
+    mock_metrics_backend.assert_called_once_with("localhost", 8125)
+    mock_action.assert_called_once_with(mock_yaml_config.return_value, mock_metrics_backend.return_value)
