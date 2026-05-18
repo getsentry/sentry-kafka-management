@@ -154,7 +154,7 @@ def get_partition_latency(
     return latency_ms, ts_ms
 
 
-def measure_cluster(
+def get_cluster_latency(
     cluster_name: str, config: ClusterConfig, topics: list[str]
 ) -> list[TopicConsumerLatency]:
     consumer_group_id = f"consumer-latency-group-{cluster_name}"
@@ -253,5 +253,5 @@ def run_latency_metrics(
         if not topics:
             continue
 
-        for scan in measure_cluster(cluster_name, cluster_config, topics):
+        for scan in get_cluster_latency(cluster_name, cluster_config, topics):
             emit_topic_consumer_latency(metrics, scan)
