@@ -42,7 +42,7 @@ class DatadogMetricsBackend(MetricsBackend):
             namespace=METRICS_PREFIX.strip("."),
             constant_tags=[],
         )
-        self.datadog_client.enable_background_sender(
+        self.datadog_client.enable_background_sender(  # type: ignore[no-untyped-call]
             sender_queue_size=SENDER_QUEUE_SIZE,
             sender_queue_timeout=SENDER_QUEUE_TIMEOUT,
         )
