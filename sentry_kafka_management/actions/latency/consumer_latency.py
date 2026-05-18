@@ -40,9 +40,7 @@ class ConsumerGroupListingError(Exception):
 
     def __init__(self, errors: list[KafkaException]) -> None:
         formatted = "; ".join(str(error) for error in errors)
-        super().__init__(
-            f"Failed to list consumer groups ({len(errors)} error(s)): {formatted}"
-        )
+        super().__init__(f"Failed to list consumer groups ({len(errors)} error(s)): {formatted}")
         self.errors = errors
 
 
@@ -81,10 +79,10 @@ def get_committed_offsets(admin: AdminClient, group_id: str) -> list[TopicPartit
 
 
 def read_timestamp_ms(
-    consumer: Consumer, 
-    topic: str, 
-    partition: int, 
-    offset: int, 
+    consumer: Consumer,
+    topic: str,
+    partition: int,
+    offset: int,
     timeout: int,
 ) -> int:
     """Read the timestamp of a message from a Kafka topic."""
@@ -103,9 +101,7 @@ def read_timestamp_ms(
         ts_type, ts_ms = msg.timestamp()
 
         if ts_type == TIMESTAMP_NOT_AVAILABLE:
-            raise ValueError(
-                f"Timestamp not available for {topic}[{partition}] at offset {offset}"
-            )
+            raise ValueError(f"Timestamp not available for {topic}[{partition}] at offset {offset}")
 
         if ts_ms < 0:
             raise ValueError(
@@ -114,16 +110,14 @@ def read_timestamp_ms(
 
         return int(ts_ms)
 
-    raise TimeoutError(
-        f"Timed out reading timestamp for {topic}[{partition}] at offset {offset}"
-    )
+    raise TimeoutError(f"Timed out reading timestamp for {topic}[{partition}] at offset {offset}")
 
 
 def get_partition_latency(
-    consumer: Consumer, 
-    topic: str, 
-    partition: int, 
-    committed_offset: int, 
+    consumer: Consumer,
+    topic: str,
+    partition: int,
+    committed_offset: int,
     timeout: int,
 ) -> float:
     """Get the latency of a partition."""
@@ -136,7 +130,7 @@ def get_partition_latency(
         raise ValueError(f"No valid high watermark for {topic}[{partition}]")
 
     if high == low or committed_offset >= high:
-        return 0.0 # Empty partition or caught up
+        return 0.0  # Empty partition or caught up
 
     # Committed offset can age out of retention (committed_offset < low),
     # so clamp to low and use the oldest message in the partition.
@@ -149,9 +143,9 @@ def get_partition_latency(
 
 
 def get_cluster_latency(
-    cluster_name: str, 
-    config: ClusterConfig, 
-    topics: list[str], 
+    cluster_name: str,
+    config: ClusterConfig,
+    topics: list[str],
     timeout: int,
 ) -> list[TopicConsumerLatency]:
     consumer_group_id = f"consumer-latency-group-{cluster_name}"

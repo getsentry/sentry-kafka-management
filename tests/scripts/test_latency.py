@@ -36,7 +36,7 @@ def test_consumer_latency_runs_collection_loop_and_emits_metrics(
             latency_ms=123.0,
         )
     ]
-    
+
     mock_sleep.side_effect = [None, KeyboardInterrupt]
 
     result = runner_invoke_with_statsd(temp_config, interval="0.25")
