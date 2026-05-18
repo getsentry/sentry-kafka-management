@@ -158,7 +158,6 @@ def get_cluster_latency(
     cluster_name: str, config: ClusterConfig, topics: list[str]
 ) -> list[TopicConsumerLatency]:
     consumer_group_id = f"consumer-latency-group-{cluster_name}"
-    consumer_client_id = f"consumer-latency-client-{cluster_name}"
 
     client_config = create_kafka_client_config(config)
 
@@ -168,7 +167,6 @@ def get_cluster_latency(
         {
             "enable.auto.commit": False,
             "group.id": consumer_group_id,
-            "client.id": consumer_client_id,
             **client_config,
         }
     )
