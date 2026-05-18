@@ -7,7 +7,7 @@ from datadog.dogstatsd.base import DogStatsd
 
 Tags = dict[str, str]
 
-METRICS_PREFIX = "kafka.broker"
+METRICS_PREFIX = "kafka.topic"
 SENDER_QUEUE_SIZE = 100000
 SENDER_QUEUE_TIMEOUT = 0
 
