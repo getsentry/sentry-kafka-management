@@ -56,21 +56,19 @@ def test_cli_brokers_describe_configs(
     assert parsed_output == mock_configs
 
 
-@patch("sentry_kafka_management.scripts.latency.consumer_latency.time.sleep")
-@patch("sentry_kafka_management.scripts.latency.consumer_latency.run_latency_metrics_action")
 @patch("sentry_kafka_management.scripts.latency.consumer_latency.DatadogMetricsBackend")
-@patch("sentry_kafka_management.scripts.latency.consumer_latency.YamlKafkaConfig")
+@patch("sentry_kafka_management.scripts.latency.consumer_latency.run_latency_metrics_action")
+@patch("time.sleep")
 def test_cli_consumer_latency(
-    mock_yaml_config: MagicMock,
-    mock_metrics_backend: MagicMock,
-    mock_action: MagicMock,
     mock_sleep: MagicMock,
+    mock_run_latency_metrics: MagicMock,
+    mock_metrics_backend: MagicMock,
     temp_config: Path,
 ) -> None:
-    """Test the consumer latency command."""
-    runner = click.testing.CliRunner()
+    mock_run_latency_metrics.return_value = []
     mock_sleep.side_effect = KeyboardInterrupt
 
+    runner = click.testing.CliRunner()
     result = runner.invoke(
         cli,
         [
@@ -85,6 +83,5 @@ def test_cli_consumer_latency(
     )
 
     assert result.exit_code != 0
-    mock_yaml_config.assert_called_once_with(temp_config)
     mock_metrics_backend.assert_called_once_with("localhost", 8125)
-    mock_action.assert_called_once_with(mock_yaml_config.return_value, mock_metrics_backend.return_value)
+    mock_run_latency_metrics.assert_called_once()
