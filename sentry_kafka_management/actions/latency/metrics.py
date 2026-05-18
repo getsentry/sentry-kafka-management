@@ -48,13 +48,9 @@ class DatadogMetricsBackend(MetricsBackend):
         )
         self.__tags = tags or {}
 
-    @staticmethod
-    def __normalize_tags(tags: Tags) -> list[str]:
-        return [f"{key}:{value.replace('|', '_')}" for key, value in tags.items()]
-
     def __datadog_tags_kw(self, tags: Tags | None) -> list[str] | None:
-        normalized = self.__normalize_tags(_combine_tags(self.__tags, tags))
-        return normalized if normalized else None
+        combined = _combine_tags(self.__tags, tags)
+        return [f"{key}:{value}" for key, value in combined.items()] if combined else None
 
     def histogram(self, name: str, value: int | float, tags: Tags | None = None) -> None:
         self.datadog_client.histogram(name, value, tags=self.__datadog_tags_kw(tags))
