@@ -33,6 +33,19 @@ class TopicConsumerLatency:
     latency_ms: float
 
 
+class ConsumerGroupListingError(Exception):
+    """
+    Raised when listing consumer groups returns one or more errors.
+    """
+
+    def __init__(self, errors: list[KafkaException]) -> None:
+        formatted = "; ".join(str(error) for error in errors)
+        super().__init__(
+            f"Failed to list consumer groups ({len(errors)} error(s)): {formatted}"
+        )
+        self.errors = errors
+
+
 def list_consumer_group_ids(admin: AdminClient) -> list[str]:
     """Get all consumer group IDs on the cluster."""
     result = admin.list_consumer_groups(request_timeout=10.0).result()
@@ -40,8 +53,8 @@ def list_consumer_group_ids(admin: AdminClient) -> list[str]:
     errors: list[KafkaException] = result.errors
     valid: list[ConsumerGroupListing] = result.valid
 
-    for error in errors:
-        raise error
+    if errors:
+        raise ConsumerGroupListingError(errors)
 
     group_ids: list[str] = []
 
@@ -60,8 +73,9 @@ def get_committed_offsets(admin: AdminClient, group_id: str) -> list[TopicPartit
     committed: list[TopicPartition] = []
 
     for partition in result.topic_partitions:
-        if partition.error is None:
-            committed.append(partition)
+        if partition.error is not None:
+            raise KafkaException(partition.error)
+        committed.append(partition)
 
     return committed
 
