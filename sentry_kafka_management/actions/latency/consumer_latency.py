@@ -205,8 +205,11 @@ def get_cluster_latency(
 def run_latency_metrics(
     config: YamlKafkaConfig,
     metrics: MetricsBackend,
-) -> None:
+) -> list[TopicConsumerLatency]:
+    scans: list[TopicConsumerLatency] = []
     for cluster_name, cluster_config in config.get_clusters().items():
         topics = list(config.get_topics_config(cluster_name))
         for scan in get_cluster_latency(cluster_name, cluster_config, topics):
             emit_topic_consumer_latency(metrics, scan)
+            scans.append(scan)
+    return scans

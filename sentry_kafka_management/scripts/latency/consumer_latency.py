@@ -50,6 +50,17 @@ def consumer_latency(
     kafka_config = YamlKafkaConfig(config)
     metrics_backend = DatadogMetricsBackend(statsd_host, statsd_port)
 
+    click.echo(f"Starting consumer latency collection (interval={interval:.3f}s)")
+
     while True:
-        run_latency_metrics_action(kafka_config, metrics_backend)
+        scans = run_latency_metrics_action(kafka_config, metrics_backend)
+        if scans:
+            for scan in scans:
+                click.echo(
+                    f"Collected latency cluster={scan.cluster_name} "
+                    f"group={scan.group_id} topic={scan.topic_name} "
+                    f"latency_ms={scan.latency_ms:.1f}"
+                )
+        else:
+            click.echo("No consumer latency collected this iteration")
         time.sleep(interval)
