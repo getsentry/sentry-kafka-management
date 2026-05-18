@@ -14,7 +14,6 @@ from confluent_kafka import (  # type: ignore[import-untyped]
 )
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
     AdminClient,
-    ClusterMetadata,
     ConsumerGroupListing,
 )
 
@@ -87,21 +86,6 @@ def get_committed_offsets(admin: AdminClient, group_id: str) -> list[TopicPartit
     return committed
 
 
-def get_topic_partitions(consumer: Consumer, topic: str) -> list[int]:
-    """Gets the partition IDs for a topic."""
-    metadata: ClusterMetadata = consumer.list_topics(topic=topic, timeout=10.0)
-
-    topic_metadata = metadata.topics.get(topic)
-
-    if topic_metadata is None:
-        return []
-
-    if topic_metadata.error is not None:
-        return []
-
-    return sorted(topic_metadata.partitions)
-
-
 def read_timestamp_ms(consumer: Consumer, topic: str, partition: int, offset: int) -> int | None:
     """Read the timestamp of a message from a Kafka topic."""
     consumer.assign([TopicPartition(topic, partition, offset)])
@@ -141,7 +125,7 @@ def get_partition_latency(
     if high <= low or committed_offset >= high:
         return 0.0
 
-    measured_offset = max(committed_offset, low) if committed_offset != OFFSET_INVALID else low
+    measured_offset = max(committed_offset, low)
 
     ts_ms = read_timestamp_ms(consumer, topic, partition, measured_offset)
 
@@ -169,6 +153,7 @@ def get_cluster_latency(
         }
     )
 
+    checked_topics = set(topics)
     scans: list[TopicConsumerLatency] = []
 
     try:
@@ -177,21 +162,19 @@ def get_cluster_latency(
             if group_id == consumer_group_id:
                 continue
 
-            committed_offsets = {
-                (tp.topic, tp.partition): int(tp.offset)
-                for tp in get_committed_offsets(admin, group_id)
-            }
-            committed_topics = {topic for topic, _partition in committed_offsets}
+            partitions_by_topic: dict[str, list[tuple[int, int]]] = {}
+            
+            for tp in get_committed_offsets(admin, group_id):
+                if tp.topic in checked_topics:
+                    partitions_by_topic.setdefault(tp.topic, []).append(
+                        (tp.partition, int(tp.offset))
+                    )
 
-            for topic in topics:
-                if topic not in committed_topics:
-                    continue
-
+            for topic, partitions in partitions_by_topic.items():
                 latency_ms = 0.0
                 has_topic_latency = False
 
-                for partition in get_topic_partitions(consumer, topic):
-                    committed_offset = committed_offsets.get((topic, partition), OFFSET_INVALID)
+                for partition, committed_offset in partitions:
                     partition_latency_ms = get_partition_latency(
                         consumer,
                         topic,
