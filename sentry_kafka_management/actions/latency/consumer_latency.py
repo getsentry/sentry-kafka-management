@@ -31,7 +31,6 @@ class TopicConsumerLatency:
     topic_name: str
     group_id: str
     latency_ms: float
-    timestamp: int | None
 
 
 def create_kafka_client_config(config: ClusterConfig) -> dict[str, object]:
@@ -129,7 +128,7 @@ def read_timestamp_ms(consumer: Consumer, topic: str, partition: int, offset: in
 
 def get_partition_latency(
     consumer: Consumer, topic: str, partition: int, committed_offset: int
-) -> tuple[float, int | None] | None:
+) -> float | None:
     """Get the latency of a partition."""
 
     low, high = consumer.get_watermark_offsets(
@@ -140,7 +139,7 @@ def get_partition_latency(
         return None
 
     if high <= low or committed_offset >= high:
-        return 0.0, None
+        return 0.0
 
     measured_offset = max(committed_offset, low) if committed_offset != OFFSET_INVALID else low
 
@@ -150,8 +149,7 @@ def get_partition_latency(
         return None
 
     now_ms = int(time.time() * 1000)
-    latency_ms = float(now_ms - ts_ms)
-    return latency_ms, ts_ms
+    return float(now_ms - ts_ms)
 
 
 def get_cluster_latency(
@@ -190,32 +188,22 @@ def get_cluster_latency(
                     continue
 
                 latency_ms = 0.0
-                oldest_outstanding_timestamp_ms: int | None = None
                 has_topic_latency = False
 
                 for partition in get_topic_partitions(consumer, topic):
                     committed_offset = committed_offsets.get((topic, partition), OFFSET_INVALID)
-                    partition_latency = get_partition_latency(
+                    partition_latency_ms = get_partition_latency(
                         consumer,
                         topic,
                         partition,
                         committed_offset,
                     )
 
-                    if partition_latency is None:
+                    if partition_latency_ms is None:
                         continue
 
-                    partition_latency_ms, message_timestamp_ms = partition_latency
                     latency_ms = max(latency_ms, partition_latency_ms)
                     has_topic_latency = True
-                    if message_timestamp_ms is not None:
-                        if oldest_outstanding_timestamp_ms is None:
-                            oldest_outstanding_timestamp_ms = message_timestamp_ms
-                        else:
-                            oldest_outstanding_timestamp_ms = min(
-                                oldest_outstanding_timestamp_ms,
-                                message_timestamp_ms,
-                            )
 
                 if not has_topic_latency:
                     continue
@@ -226,7 +214,6 @@ def get_cluster_latency(
                         group_id=group_id,
                         topic_name=topic,
                         latency_ms=latency_ms,
-                        timestamp=oldest_outstanding_timestamp_ms,
                     )
                 )
     finally:
