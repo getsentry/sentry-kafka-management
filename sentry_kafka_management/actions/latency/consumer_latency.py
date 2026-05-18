@@ -131,9 +131,11 @@ def get_partition_latency(
     if high == OFFSET_INVALID:
         raise ValueError(f"No valid high watermark for {topic}[{partition}]")
 
-    if high <= low or committed_offset >= high:
-        return 0.0
+    if high == low or committed_offset >= high:
+        return 0.0 # Empty partition or caught up
 
+    # Committed offset can age out of retention (committed_offset < low),
+    # so clamp to low and use the oldest message in the partition.
     measured_offset = max(committed_offset, low)
 
     ts_ms = read_timestamp_ms(consumer, topic, partition, measured_offset)
