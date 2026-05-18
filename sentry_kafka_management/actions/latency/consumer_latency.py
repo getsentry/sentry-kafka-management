@@ -179,7 +179,6 @@ def get_cluster_latency(
 
             for topic, partitions in partitions_by_topic.items():
                 latency_ms = 0.0
-                has_topic_latency = False
 
                 for partition, committed_offset in partitions:
                     partition_latency_ms = get_partition_latency(
@@ -191,10 +190,6 @@ def get_cluster_latency(
                     )
 
                     latency_ms = max(latency_ms, partition_latency_ms)
-                    has_topic_latency = True
-
-                if not has_topic_latency:
-                    continue
 
                 scans.append(
                     TopicConsumerLatency(
