@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import time
 from dataclasses import dataclass
 
@@ -22,6 +21,8 @@ from sentry_kafka_management.actions.latency.metrics import (
     emit_topic_consumer_latency,
 )
 from sentry_kafka_management.brokers import ClusterConfig, YamlKafkaConfig
+from sentry_kafka_management.connectors.admin import get_admin_client
+from sentry_kafka_management.connectors.kafka_config import build_broker_config
 
 
 @dataclass
@@ -30,27 +31,6 @@ class TopicConsumerLatency:
     topic_name: str
     group_id: str
     latency_ms: float
-
-
-def create_kafka_client_config(config: ClusterConfig) -> dict[str, object]:
-    client_config: dict[str, object] = {"bootstrap.servers": ",".join(config["brokers"])}
-
-    if config["security_protocol"]:
-        client_config["security.protocol"] = config["security_protocol"]
-
-    if config["sasl_mechanism"]:
-        client_config["sasl.mechanism"] = config["sasl_mechanism"]
-
-    if config["sasl_username"]:
-        client_config["sasl.username"] = config["sasl_username"]
-
-    if config["sasl_password"]:
-        if config["password_is_plaintext"]:
-            client_config["sasl.password"] = config["sasl_password"]
-        else:
-            client_config["sasl.password"] = os.path.expandvars(config["sasl_password"])
-
-    return client_config
 
 
 def list_consumer_group_ids(admin: AdminClient) -> list[str]:
@@ -149,15 +129,13 @@ def get_cluster_latency(
 ) -> list[TopicConsumerLatency]:
     consumer_group_id = f"consumer-latency-group-{cluster_name}"
 
-    client_config = create_kafka_client_config(config)
-
-    admin = AdminClient(client_config)
+    admin = get_admin_client(config)
 
     consumer = Consumer(
         {
             "enable.auto.commit": False,
             "group.id": consumer_group_id,
-            **client_config,
+            **build_broker_config(config),
         }
     )
 
