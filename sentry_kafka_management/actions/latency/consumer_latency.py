@@ -86,33 +86,42 @@ def get_committed_offsets(admin: AdminClient, group_id: str) -> list[TopicPartit
     return committed
 
 
-def read_timestamp_ms(consumer: Consumer, topic: str, partition: int, offset: int) -> int | None:
+def read_timestamp_ms(consumer: Consumer, topic: str, partition: int, offset: int) -> int:
     """Read the timestamp of a message from a Kafka topic."""
     consumer.assign([TopicPartition(topic, partition, offset)])
     deadline = time.monotonic() + 10.0
 
     while time.monotonic() < deadline:
         msg = consumer.poll(1.0)
-
         if msg is None:
             continue
 
-        if msg.error():
-            return None
+        error = msg.error()
+        if error is not None:
+            raise KafkaException(error)
 
         ts_type, ts_ms = msg.timestamp()
 
-        if ts_type == TIMESTAMP_NOT_AVAILABLE or ts_ms < 0:
-            return None
+        if ts_type == TIMESTAMP_NOT_AVAILABLE:
+            raise ValueError(
+                f"Timestamp not available for {topic}[{partition}] at offset {offset}"
+            )
+
+        if ts_ms < 0:
+            raise ValueError(
+                f"Invalid timestamp {ts_ms} for {topic}[{partition}] at offset {offset}"
+            )
 
         return int(ts_ms)
 
-    return None
+    raise TimeoutError(
+        f"Timed out reading timestamp for {topic}[{partition}] at offset {offset}"
+    )
 
 
 def get_partition_latency(
     consumer: Consumer, topic: str, partition: int, committed_offset: int
-) -> float | None:
+) -> float:
     """Get the latency of a partition."""
 
     low, high = consumer.get_watermark_offsets(
@@ -120,7 +129,7 @@ def get_partition_latency(
     )
 
     if high == OFFSET_INVALID:
-        return None
+        raise ValueError(f"No valid high watermark for {topic}[{partition}]")
 
     if high <= low or committed_offset >= high:
         return 0.0
@@ -128,9 +137,6 @@ def get_partition_latency(
     measured_offset = max(committed_offset, low)
 
     ts_ms = read_timestamp_ms(consumer, topic, partition, measured_offset)
-
-    if ts_ms is None:
-        return None
 
     now_ms = int(time.time() * 1000)
     return float(now_ms - ts_ms)
@@ -163,7 +169,7 @@ def get_cluster_latency(
                 continue
 
             partitions_by_topic: dict[str, list[tuple[int, int]]] = {}
-            
+
             for tp in get_committed_offsets(admin, group_id):
                 if tp.topic in checked_topics:
                     partitions_by_topic.setdefault(tp.topic, []).append(
@@ -181,9 +187,6 @@ def get_cluster_latency(
                         partition,
                         committed_offset,
                     )
-
-                    if partition_latency_ms is None:
-                        continue
 
                     latency_ms = max(latency_ms, partition_latency_ms)
                     has_topic_latency = True
