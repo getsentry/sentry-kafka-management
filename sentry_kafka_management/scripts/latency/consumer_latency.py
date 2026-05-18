@@ -32,17 +32,27 @@ from sentry_kafka_management.brokers import YamlKafkaConfig
     help="DogStatsD port to emit metrics to",
 )
 @click.option(
+    "-i",
     "--interval",
     required=False,
     default=1.0,
     type=click.FloatRange(min=0.0, min_open=True),
     help="How often in seconds to collect metrics. Defaults to 1s.",
 )
+@click.option(
+    "-t",
+    "--timeout",
+    required=False,
+    default=10,
+    type=int,
+    help="How long in seconds to wait before Kafka requests time out. Defaults to 10s.",
+)
 def consumer_latency(
     config: Path,
     statsd_host: str,
     statsd_port: int,
     interval: float,
+    timeout: int,
 ) -> None:
     """
     Emit Kafka consumer latency metrics for configured clusters.
@@ -53,7 +63,7 @@ def consumer_latency(
     click.echo(f"Starting consumer latency collection (interval={interval:.3f}s)")
 
     while True:
-        scans = run_latency_metrics_action(kafka_config, metrics_backend)
+        scans = run_latency_metrics_action(kafka_config, metrics_backend, timeout)
         if scans:
             for scan in scans:
                 click.echo(

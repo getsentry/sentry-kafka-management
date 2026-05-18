@@ -48,7 +48,7 @@ class ConsumerGroupListingError(Exception):
 
 def list_consumer_group_ids(admin: AdminClient) -> list[str]:
     """Get all consumer group IDs on the cluster."""
-    result = admin.list_consumer_groups(request_timeout=10.0).result()
+    result = admin.list_consumer_groups().result()
 
     errors: list[KafkaException] = result.errors
     valid: list[ConsumerGroupListing] = result.valid
@@ -80,10 +80,16 @@ def get_committed_offsets(admin: AdminClient, group_id: str) -> list[TopicPartit
     return committed
 
 
-def read_timestamp_ms(consumer: Consumer, topic: str, partition: int, offset: int) -> int:
+def read_timestamp_ms(
+    consumer: Consumer, 
+    topic: str, 
+    partition: int, 
+    offset: int, 
+    timeout: int,
+) -> int:
     """Read the timestamp of a message from a Kafka topic."""
     consumer.assign([TopicPartition(topic, partition, offset)])
-    deadline = time.monotonic() + 10.0
+    deadline = time.monotonic() + timeout
 
     while time.monotonic() < deadline:
         msg = consumer.poll(1.0)
@@ -114,12 +120,16 @@ def read_timestamp_ms(consumer: Consumer, topic: str, partition: int, offset: in
 
 
 def get_partition_latency(
-    consumer: Consumer, topic: str, partition: int, committed_offset: int
+    consumer: Consumer, 
+    topic: str, 
+    partition: int, 
+    committed_offset: int, 
+    timeout: int,
 ) -> float:
     """Get the latency of a partition."""
 
     low, high = consumer.get_watermark_offsets(
-        TopicPartition(topic, partition), timeout=10.0, cached=False
+        TopicPartition(topic, partition), timeout=timeout, cached=False
     )
 
     if high == OFFSET_INVALID:
@@ -132,14 +142,17 @@ def get_partition_latency(
     # so clamp to low and use the oldest message in the partition.
     measured_offset = max(committed_offset, low)
 
-    ts_ms = read_timestamp_ms(consumer, topic, partition, measured_offset)
+    ts_ms = read_timestamp_ms(consumer, topic, partition, measured_offset, timeout)
 
     now_ms = int(time.time() * 1000)
     return float(now_ms - ts_ms)
 
 
 def get_cluster_latency(
-    cluster_name: str, config: ClusterConfig, topics: list[str]
+    cluster_name: str, 
+    config: ClusterConfig, 
+    topics: list[str], 
+    timeout: int,
 ) -> list[TopicConsumerLatency]:
     consumer_group_id = f"consumer-latency-group-{cluster_name}"
 
@@ -180,6 +193,7 @@ def get_cluster_latency(
                         topic,
                         partition,
                         committed_offset,
+                        timeout,
                     )
 
                     latency_ms = max(latency_ms, partition_latency_ms)
@@ -205,11 +219,12 @@ def get_cluster_latency(
 def run_latency_metrics(
     config: YamlKafkaConfig,
     metrics: MetricsBackend,
+    timeout: int = 10,
 ) -> list[TopicConsumerLatency]:
     scans: list[TopicConsumerLatency] = []
     for cluster_name, cluster_config in config.get_clusters().items():
         topics = list(config.get_topics_config(cluster_name))
-        for scan in get_cluster_latency(cluster_name, cluster_config, topics):
+        for scan in get_cluster_latency(cluster_name, cluster_config, topics, timeout):
             emit_topic_consumer_latency(metrics, scan)
             scans.append(scan)
     return scans
