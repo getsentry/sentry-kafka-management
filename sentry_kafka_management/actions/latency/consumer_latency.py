@@ -222,21 +222,11 @@ def get_cluster_latency(
     return scans
 
 
-def get_configured_topic_names(config: YamlKafkaConfig, cluster_name: str) -> list[str]:
-    try:
-        return list(config.get_topics_config(cluster_name))
-    except KeyError:
-        return []
-
-
 def run_latency_metrics(
     config: YamlKafkaConfig,
     metrics: MetricsBackend,
 ) -> None:
     for cluster_name, cluster_config in config.get_clusters().items():
-        topics = get_configured_topic_names(config, cluster_name)
-        if not topics:
-            continue
-
+        topics = list(config.get_topics_config(cluster_name))
         for scan in get_cluster_latency(cluster_name, cluster_config, topics):
             emit_topic_consumer_latency(metrics, scan)
