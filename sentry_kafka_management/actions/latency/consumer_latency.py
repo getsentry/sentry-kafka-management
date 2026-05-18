@@ -70,7 +70,7 @@ def list_consumer_group_ids(admin: AdminClient) -> list[str]:
     for listing in valid:
         group_ids.append(listing.group_id)
 
-    return sorted(group_ids)
+    return group_ids
 
 
 def get_committed_offsets(admin: AdminClient, group_id: str) -> list[TopicPartition]:
