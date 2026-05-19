@@ -35,9 +35,9 @@ from sentry_kafka_management.brokers import YamlKafkaConfig
     "-i",
     "--interval",
     required=False,
-    default=1.0,
+    default=10.0,
     type=click.FloatRange(min=0.0, min_open=True),
-    help="How often in seconds to collect metrics. Defaults to 1s.",
+    help="How often in seconds to collect metrics. Defaults to 10s.",
 )
 @click.option(
     "-t",
