@@ -6,7 +6,7 @@ from pathlib import Path
 import click
 
 from sentry_kafka_management.actions.latency.consumer_latency import (
-    run_latency_metrics as run_latency_metrics_action,
+    record_consumer_group_latency as record_consumer_group_latency_action,
 )
 from sentry_kafka_management.actions.latency.metrics import DatadogMetricsBackend
 from sentry_kafka_management.brokers import YamlKafkaConfig
@@ -63,7 +63,7 @@ def consumer_latency(
     click.echo(f"Starting consumer latency collection (interval={interval:.3f}s)")
 
     while True:
-        scans = run_latency_metrics_action(kafka_config, metrics_backend, timeout)
+        scans = record_consumer_group_latency_action(kafka_config, metrics_backend, timeout)
         if scans:
             for scan in scans:
                 click.echo(

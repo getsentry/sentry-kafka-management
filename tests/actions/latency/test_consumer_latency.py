@@ -22,7 +22,7 @@ from sentry_kafka_management.actions.latency.consumer_latency import (
     get_partition_latency,
     list_consumer_group_ids,
     read_timestamp_ms,
-    run_latency_metrics,
+    record_consumer_group_latency,
 )
 from sentry_kafka_management.actions.latency.metrics import MetricsBackend, Tags
 from sentry_kafka_management.brokers import ClusterConfig
@@ -412,7 +412,7 @@ def test_get_cluster_latency_closes_consumer_on_error(
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.get_cluster_latency")
-def test_run_latency_metrics_emits_one_histogram_per_scan(
+def test_record_consumer_group_latency_emits_one_histogram_per_scan(
     mock_get_cluster_latency: MagicMock,
 ) -> None:
     config = Mock()
@@ -433,7 +433,7 @@ def test_run_latency_metrics_emits_one_histogram_per_scan(
     ]
     metrics = FakeMetricsBackend()
 
-    scans = run_latency_metrics(config, metrics)
+    scans = record_consumer_group_latency(config, metrics)
 
     assert len(scans) == 3
     assert [latency for _, latency, _ in metrics.histograms] == [100.0, 200.0, 50.0]
@@ -442,7 +442,7 @@ def test_run_latency_metrics_emits_one_histogram_per_scan(
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.get_cluster_latency")
-def test_run_latency_metrics_emits_nothing_when_no_clusters_have_latency(
+def test_record_consumer_group_latency_emits_nothing_when_no_clusters_have_latency(
     mock_get_cluster_latency: MagicMock,
 ) -> None:
     config = Mock()
@@ -451,5 +451,5 @@ def test_run_latency_metrics_emits_nothing_when_no_clusters_have_latency(
     mock_get_cluster_latency.return_value = []
     metrics = FakeMetricsBackend()
 
-    assert run_latency_metrics(config, metrics) == []
+    assert record_consumer_group_latency(config, metrics) == []
     assert metrics.histograms == []

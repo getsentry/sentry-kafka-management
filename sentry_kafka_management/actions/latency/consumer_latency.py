@@ -209,7 +209,7 @@ def get_cluster_latency(
     return scans
 
 
-def run_latency_metrics(
+def record_consumer_group_latency(
     config: YamlKafkaConfig,
     metrics: MetricsBackend,
     timeout: int = 10,
