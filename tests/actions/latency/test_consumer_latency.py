@@ -75,6 +75,15 @@ def _make_committed_offsets_future(
     return future
 
 
+def _make_errored_topic_partition(topic: str, partition: int, offset: int) -> Mock:
+    bad_tp = Mock(spec=["topic", "partition", "offset", "error"])
+    bad_tp.topic = topic
+    bad_tp.partition = partition
+    bad_tp.offset = offset
+    bad_tp.error = KafkaError(KafkaError.UNKNOWN, "error")
+    return bad_tp
+
+
 def _make_message(
     timestamp: tuple[int, int] | None = None,
     error: KafkaError | None = None,
@@ -118,40 +127,45 @@ def test_list_consumer_group_ids_raises_on_errors() -> None:
     assert "2 error(s)" in str(excinfo.value)
 
 
-def test_get_committed_offsets_returns_partitions() -> None:
+@pytest.mark.parametrize(
+    ("partitions", "expected", "raises"),
+    [
+        pytest.param(
+            [
+                TopicPartition("topic-a", 0, 100),
+                TopicPartition("topic-a", 1, 200),
+            ],
+            [
+                TopicPartition("topic-a", 0, 100),
+                TopicPartition("topic-a", 1, 200),
+            ],
+            None,
+            id="returns_partitions",
+        ),
+        pytest.param([], [], None, id="empty"),
+        pytest.param(
+            [_make_errored_topic_partition("topic-a", 0, 100)],
+            None,
+            KafkaException,
+            id="raises_on_partition_error",
+        ),
+    ],
+)
+def test_get_committed_offsets(
+    partitions: list[TopicPartition | Mock],
+    expected: list[TopicPartition] | None,
+    raises: type[Exception] | None,
+) -> None:
     admin = Mock()
-    tp0 = TopicPartition("topic-a", 0, 100)
-    tp1 = TopicPartition("topic-a", 1, 200)
     admin.list_consumer_group_offsets.return_value = {
-        "group-a": _make_committed_offsets_future("group-a", [tp0, tp1])
+        "group-a": _make_committed_offsets_future("group-a", partitions)
     }
 
-    assert get_committed_offsets(admin, "group-a") == [tp0, tp1]
-
-
-def test_get_committed_offsets_empty() -> None:
-    admin = Mock()
-    admin.list_consumer_group_offsets.return_value = {
-        "group-a": _make_committed_offsets_future("group-a", [])
-    }
-
-    assert get_committed_offsets(admin, "group-a") == []
-
-
-def test_get_committed_offsets_raises_on_partition_error() -> None:
-    admin = Mock()
-
-    bad_tp = Mock(spec=["topic", "partition", "offset", "error"])
-    bad_tp.topic = "topic-a"
-    bad_tp.partition = 0
-    bad_tp.offset = 100
-    bad_tp.error = KafkaError(KafkaError.UNKNOWN, "error")
-    admin.list_consumer_group_offsets.return_value = {
-        "group-a": _make_committed_offsets_future("group-a", [bad_tp])
-    }
-
-    with pytest.raises(KafkaException):
-        get_committed_offsets(admin, "group-a")
+    if raises is not None:
+        with pytest.raises(raises):
+            get_committed_offsets(admin, "group-a")
+    else:
+        assert get_committed_offsets(admin, "group-a") == expected
 
 
 def test_read_timestamp_ms_returns_create_time_timestamp() -> None:
