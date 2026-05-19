@@ -184,6 +184,17 @@ def test_read_timestamp_ms_raises_on_message_error() -> None:
         read_timestamp_ms(consumer, "topic-a", 0, 42, timeout=10)
 
 
+def test_read_timestamp_ms_retries_on_retryable_error() -> None:
+    consumer = Mock()
+    consumer.poll.side_effect = [
+        _make_message(error=KafkaError(KafkaError.REQUEST_TIMED_OUT, "request timed out")),
+        _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 1_700_000_000_000)),
+    ]
+
+    assert read_timestamp_ms(consumer, "topic-a", 0, 42, timeout=10) == 1_700_000_000_000
+    assert consumer.poll.call_count == 2
+
+
 def test_read_timestamp_ms_raises_when_timestamp_not_available() -> None:
     consumer = Mock()
     consumer.poll.return_value = _make_message(

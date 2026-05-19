@@ -8,6 +8,7 @@ from confluent_kafka import (  # type: ignore[import-untyped]
     TIMESTAMP_NOT_AVAILABLE,
     Consumer,
     ConsumerGroupTopicPartitions,
+    KafkaError,
     KafkaException,
     TopicPartition,
 )
@@ -25,6 +26,15 @@ from sentry_kafka_management.connectors.admin import get_admin_client
 from sentry_kafka_management.connectors.kafka_config import build_broker_config
 
 RETENTION_TIME_MS = 24 * 60 * 60 * 1000
+
+RETRYABLE_ERRORS = frozenset(
+    {
+        KafkaError.REQUEST_TIMED_OUT,
+        KafkaError.NOT_COORDINATOR,
+        KafkaError._WAIT_COORD,
+        KafkaError.COORDINATOR_LOAD_IN_PROGRESS,
+    }
+)
 
 
 @dataclass
@@ -97,8 +107,12 @@ def read_timestamp_ms(
             continue
 
         error = msg.error()
+
         if error is not None:
-            raise KafkaException(error)
+            if error.code() not in RETRYABLE_ERRORS:
+                raise KafkaException(error)
+            else:
+                continue
 
         ts_type, ts_ms = msg.timestamp()
 
