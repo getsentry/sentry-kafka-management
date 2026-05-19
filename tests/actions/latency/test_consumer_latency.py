@@ -14,6 +14,7 @@ from confluent_kafka import (  # type: ignore[import-untyped]
 )
 
 from sentry_kafka_management.actions.latency.consumer_latency import (
+    RETENTION_TIME_MS,
     ConsumerGroupListingError,
     TopicConsumerLatency,
     get_cluster_latency,
@@ -256,16 +257,26 @@ def test_get_partition_latency_reads_committed_offset_when_in_range() -> None:
     assert assigned == [TopicPartition("topic-a", 0, 50)]
 
 
-def test_get_partition_latency_clamps_committed_below_low_watermark() -> None:
+def test_get_partition_latency_returns_retention_when_committed_below_low_watermark() -> None:
     consumer = Mock()
     consumer.get_watermark_offsets.return_value = (100, 200)
-    consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 1_700_000_000_000))
 
-    with patch("time.time", return_value=1_700_000_000.0):
+    assert (
         get_partition_latency(consumer, "topic-a", 0, committed_offset=5, timeout=10)
+        == RETENTION_TIME_MS
+    )
+    consumer.poll.assert_not_called()
 
-    (assigned,) = consumer.assign.call_args.args
-    assert assigned == [TopicPartition("topic-a", 0, 100)]
+
+def test_get_partition_latency_returns_zero_for_uncommitted_offset() -> None:
+    consumer = Mock()
+    consumer.get_watermark_offsets.return_value = (10, 100)
+
+    assert (
+        get_partition_latency(consumer, "topic-a", 0, committed_offset=OFFSET_INVALID, timeout=10)
+        == 0.0
+    )
+    consumer.poll.assert_not_called()
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")

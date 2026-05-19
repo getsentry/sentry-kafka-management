@@ -24,6 +24,8 @@ from sentry_kafka_management.brokers import ClusterConfig, YamlKafkaConfig
 from sentry_kafka_management.connectors.admin import get_admin_client
 from sentry_kafka_management.connectors.kafka_config import build_broker_config
 
+RETENTION_TIME_MS = 24 * 60 * 60 * 1000
+
 
 @dataclass
 class TopicConsumerLatency:
@@ -132,11 +134,13 @@ def get_partition_latency(
     if high == low or committed_offset >= high:
         return 0.0  # Empty partition or caught up
 
-    # Committed offset can age out of retention (committed_offset < low),
-    # so clamp to low and use the oldest message in the partition.
-    measured_offset = max(committed_offset, low)
+    if committed_offset < 0:
+        return 0.0  # No committed offset
 
-    ts_ms = read_timestamp_ms(consumer, topic, partition, measured_offset, timeout)
+    if committed_offset < low:
+        return float(RETENTION_TIME_MS)  # Aged out of retention
+
+    ts_ms = read_timestamp_ms(consumer, topic, partition, committed_offset, timeout)
 
     now_ms = int(time.time() * 1000)
     return float(now_ms - ts_ms)
