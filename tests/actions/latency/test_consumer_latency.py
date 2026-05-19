@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import Future
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -8,9 +9,14 @@ from confluent_kafka import (  # type: ignore[import-untyped]
     TIMESTAMP_CREATE_TIME,
     TIMESTAMP_LOG_APPEND_TIME,
     TIMESTAMP_NOT_AVAILABLE,
+    ConsumerGroupTopicPartitions,
     KafkaError,
     KafkaException,
     TopicPartition,
+)
+from confluent_kafka.admin import (  # type: ignore[import-untyped]
+    ConsumerGroupListing,
+    ListConsumerGroupsResult,
 )
 
 from sentry_kafka_management.actions.latency.consumer_latency import (
@@ -45,23 +51,27 @@ class FakeMetricsBackend(MetricsBackend):
         self.histograms.append((name, value, tags))
 
 
-def _make_group_listing(group_id: str) -> Mock:
-    listing = Mock()
-    listing.group_id = group_id
-    return listing
+def _make_group_listing(group_id: str) -> ConsumerGroupListing:
+    return ConsumerGroupListing(group_id=group_id, is_simple_consumer_group=False)
 
 
-def _make_list_groups_result(valid: list[Mock], errors: list[KafkaException] | None = None) -> Mock:
-    future = Mock()
-    future.result.return_value = Mock(valid=valid, errors=errors or [])
+def _make_list_groups_result(
+    valid: list[ListConsumerGroupsResult], errors: list[KafkaException] | None = None
+) -> Future[ListConsumerGroupsResult]:
+    result = ListConsumerGroupsResult()
+    result.valid = valid
+    result.errors = errors
+    future = Future[ListConsumerGroupsResult]()
+    future.set_result(result)
     return future
 
 
 def _make_committed_offsets_future(
+    group_id: str,
     partitions: list[TopicPartition],
-) -> Mock:
-    future = Mock()
-    future.result.return_value = Mock(topic_partitions=partitions)
+) -> Future[ConsumerGroupTopicPartitions]:
+    future = Future[ConsumerGroupTopicPartitions]()
+    future.set_result(ConsumerGroupTopicPartitions(group_id=group_id, topic_partitions=partitions))
     return future
 
 
@@ -113,7 +123,7 @@ def test_get_committed_offsets_returns_partitions() -> None:
     tp0 = TopicPartition("topic-a", 0, 100)
     tp1 = TopicPartition("topic-a", 1, 200)
     admin.list_consumer_group_offsets.return_value = {
-        "group-a": _make_committed_offsets_future([tp0, tp1])
+        "group-a": _make_committed_offsets_future("group-a", [tp0, tp1])
     }
 
     assert get_committed_offsets(admin, "group-a") == [tp0, tp1]
@@ -121,7 +131,9 @@ def test_get_committed_offsets_returns_partitions() -> None:
 
 def test_get_committed_offsets_empty() -> None:
     admin = Mock()
-    admin.list_consumer_group_offsets.return_value = {"group-a": _make_committed_offsets_future([])}
+    admin.list_consumer_group_offsets.return_value = {
+        "group-a": _make_committed_offsets_future("group-a", [])
+    }
 
     assert get_committed_offsets(admin, "group-a") == []
 
@@ -135,7 +147,7 @@ def test_get_committed_offsets_raises_on_partition_error() -> None:
     bad_tp.offset = 100
     bad_tp.error = KafkaError(KafkaError.UNKNOWN, "error")
     admin.list_consumer_group_offsets.return_value = {
-        "group-a": _make_committed_offsets_future([bad_tp])
+        "group-a": _make_committed_offsets_future("group-a", [bad_tp])
     }
 
     with pytest.raises(KafkaException):
@@ -323,10 +335,11 @@ def test_get_cluster_latency_filters_unconfigured_topics(
     )
     admin.list_consumer_group_offsets.return_value = {
         "group-a": _make_committed_offsets_future(
+            "group-a",
             [
                 TopicPartition("topic-a", 0, 50),
                 TopicPartition("other-topic", 0, 100),
-            ]
+            ],
         ),
     }
 
@@ -355,10 +368,11 @@ def test_get_cluster_latency_emits_max_partition_latency_per_topic(
     )
     admin.list_consumer_group_offsets.return_value = {
         "group-a": _make_committed_offsets_future(
+            "group-a",
             [
                 TopicPartition("topic-a", 0, 50),
                 TopicPartition("topic-a", 1, 50),
-            ]
+            ],
         ),
     }
 
@@ -396,6 +410,7 @@ def test_get_cluster_latency_skips_groups_with_no_matching_topics(
     )
     admin.list_consumer_group_offsets.return_value = {
         "group-a": _make_committed_offsets_future(
+            "group-a",
             [TopicPartition("other-topic", 0, 100)],
         ),
     }
