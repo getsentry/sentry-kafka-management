@@ -21,6 +21,7 @@ class TopicConsumerLatency(Protocol):
     topic_name: str
     group_id: str
     latency_ms: float
+    partition: int
 
 
 class MetricsBackend(Protocol):
@@ -61,6 +62,7 @@ def create_topic_consumer_latency_tags(scan: TopicConsumerLatency) -> Tags:
         "cluster": scan.cluster_name,
         "consumer_group": scan.group_id,
         "topic": scan.topic_name,
+        "partition": str(scan.partition),
     }
 
 

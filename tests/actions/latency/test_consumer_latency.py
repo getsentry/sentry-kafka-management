@@ -371,7 +371,7 @@ def test_get_cluster_latency_filters_unconfigured_topics(
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
 @patch("sentry_kafka_management.actions.latency.consumer_latency.get_admin_client")
-def test_get_cluster_latency_emits_max_partition_latency_per_topic(
+def test_get_cluster_latency_reports_latency_per_partition(
     mock_get_admin: MagicMock,
     mock_consumer_cls: MagicMock,
 ) -> None:
@@ -406,8 +406,16 @@ def test_get_cluster_latency_emits_max_partition_latency_per_topic(
             cluster_name="cluster1",
             group_id="group-a",
             topic_name="topic-a",
+            latency_ms=200.0,
+            partition=0,
+        ),
+        TopicConsumerLatency(
+            cluster_name="cluster1",
+            group_id="group-a",
+            topic_name="topic-a",
             latency_ms=1000.0,
-        )
+            partition=1,
+        ),
     ]
 
 
@@ -466,10 +474,10 @@ def test_record_consumer_group_latency_emits_one_histogram_per_scan(
     }[name]
     mock_get_cluster_latency.side_effect = [
         [
-            TopicConsumerLatency("cluster1", "topic-a", "group-a", 100.0),
-            TopicConsumerLatency("cluster1", "topic-a", "group-b", 200.0),
+            TopicConsumerLatency("cluster1", "topic-a", "group-a", 100.0, partition=0),
+            TopicConsumerLatency("cluster1", "topic-a", "group-b", 200.0, partition=1),
         ],
-        [TopicConsumerLatency("cluster2", "topic-b", "group-c", 50.0)],
+        [TopicConsumerLatency("cluster2", "topic-b", "group-c", 50.0, partition=2)],
     ]
     metrics = FakeMetricsBackend()
 
@@ -479,6 +487,8 @@ def test_record_consumer_group_latency_emits_one_histogram_per_scan(
     assert [latency for _, latency, _ in metrics.histograms] == [100.0, 200.0, 50.0]
     cluster_tags = [tags["cluster"] for _, _, tags in metrics.histograms if tags]
     assert cluster_tags == ["cluster1", "cluster1", "cluster2"]
+    partition_tags = [tags["partition"] for _, _, tags in metrics.histograms if tags]
+    assert partition_tags == ["0", "1", "2"]
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.get_cluster_latency")

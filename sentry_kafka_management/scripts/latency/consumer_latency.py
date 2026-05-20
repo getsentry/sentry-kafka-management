@@ -69,7 +69,7 @@ def consumer_latency(
                 click.echo(
                     f"Collected latency cluster={scan.cluster_name} "
                     f"group={scan.group_id} topic={scan.topic_name} "
-                    f"latency_ms={scan.latency_ms:.1f}"
+                    f"partition={scan.partition} latency_ms={scan.latency_ms:.1f}"
                 )
         else:
             click.echo("No consumer latency collected this iteration")

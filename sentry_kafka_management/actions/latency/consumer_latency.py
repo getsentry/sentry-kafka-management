@@ -43,6 +43,7 @@ class TopicConsumerLatency:
     topic_name: str
     group_id: str
     latency_ms: float
+    partition: int
 
 
 class ConsumerGroupListingError(Exception):
@@ -196,27 +197,22 @@ def get_cluster_latency(
                     )
 
             for topic, partitions in partitions_by_topic.items():
-                latency_ms = 0.0
-
                 for partition, committed_offset in partitions:
-                    partition_latency_ms = get_partition_latency(
-                        consumer,
-                        topic,
-                        partition,
-                        committed_offset,
-                        timeout,
+                    scans.append(
+                        TopicConsumerLatency(
+                            cluster_name=cluster_name,
+                            group_id=group_id,
+                            topic_name=topic,
+                            latency_ms=get_partition_latency(
+                                consumer,
+                                topic,
+                                partition,
+                                committed_offset,
+                                timeout,
+                            ),
+                            partition=partition,
+                        )
                     )
-
-                    latency_ms = max(latency_ms, partition_latency_ms)
-
-                scans.append(
-                    TopicConsumerLatency(
-                        cluster_name=cluster_name,
-                        group_id=group_id,
-                        topic_name=topic,
-                        latency_ms=latency_ms,
-                    )
-                )
     finally:
         consumer.close()
 

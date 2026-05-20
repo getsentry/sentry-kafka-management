@@ -34,6 +34,7 @@ def test_consumer_latency_runs_collection_loop_and_emits_metrics(
             group_id="group-a",
             topic_name="topic1",
             latency_ms=123.0,
+            partition=0,
         )
     ]
 

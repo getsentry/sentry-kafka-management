@@ -15,6 +15,7 @@ class FakeTopicConsumerLatency:
     topic_name: str
     group_id: str
     latency_ms: float
+    partition: int
 
 
 class FakeMetricsBackend(MetricsBackend):
@@ -31,12 +32,14 @@ def test_create_topic_consumer_latency_tags() -> None:
         topic_name="topic1",
         group_id="consumer-group1",
         latency_ms=100.0,
+        partition=3,
     )
 
     assert create_topic_consumer_latency_tags(scan) == {
         "cluster": "cluster1",
         "consumer_group": "consumer-group1",
         "topic": "topic1",
+        "partition": "3",
     }
 
 
@@ -46,6 +49,7 @@ def test_emit_topic_consumer_latency() -> None:
         topic_name="topic1",
         group_id="consumer-group1",
         latency_ms=100.0,
+        partition=3,
     )
     metrics = FakeMetricsBackend()
 
@@ -59,6 +63,7 @@ def test_emit_topic_consumer_latency() -> None:
                 "cluster": "cluster1",
                 "consumer_group": "consumer-group1",
                 "topic": "topic1",
+                "partition": "3",
             },
         )
     ]
