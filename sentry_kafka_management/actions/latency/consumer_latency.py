@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from typing import Mapping
 
 from confluent_kafka import (  # type: ignore[import-untyped]
-    OFFSET_INVALID,
     TIMESTAMP_NOT_AVAILABLE,
     Consumer,
     ConsumerGroupTopicPartitions,
@@ -21,11 +21,9 @@ from sentry_kafka_management.actions.latency.metrics import (
     MetricsBackend,
     emit_topic_consumer_latency,
 )
-from sentry_kafka_management.brokers import ClusterConfig, YamlKafkaConfig
+from sentry_kafka_management.brokers import ClusterConfig, TopicConfig, YamlKafkaConfig
 from sentry_kafka_management.connectors.admin import get_admin_client
 from sentry_kafka_management.connectors.kafka_config import build_broker_config
-
-RETENTION_TIME_MS = 24 * 60 * 60 * 1000
 
 RETRYABLE_ERRORS = frozenset(
     {
@@ -143,6 +141,7 @@ def get_partition_latency(
     topic: str,
     partition: int,
     committed_offset: int,
+    retention_ms: int,
     timeout: int,
 ) -> float:
     """Get the latency of a partition."""
@@ -151,17 +150,11 @@ def get_partition_latency(
         TopicPartition(topic, partition), timeout=timeout, cached=False
     )
 
-    if high == OFFSET_INVALID:
-        raise ValueError(f"No valid high watermark for {topic}[{partition}]")
-
-    if high == low or committed_offset >= high:
-        return 0.0  # Empty partition or caught up
-
-    if committed_offset < 0:
-        return 0.0  # No committed offset
+    if high <= committed_offset:
+        return 0.0  # Caught up regardless of retention
 
     if committed_offset < low:
-        return float(RETENTION_TIME_MS)  # Aged out of retention
+        return float(retention_ms)  # Aged out of retention
 
     ts_ms = read_timestamp_ms(consumer, topic, partition, committed_offset, timeout)
 
@@ -172,14 +165,24 @@ def get_partition_latency(
 def get_cluster_latency(
     cluster_name: str,
     config: ClusterConfig,
-    topics: list[str],
+    topics: Mapping[str, TopicConfig],
     timeout: int,
 ) -> ConsumerLatencyResult:
     consumer_group_id = f"consumer-latency-group-{cluster_name}"
-    checked_topics = set(topics)
     scans: list[TopicConsumerLatency] = []
     errors: list[Exception] = []
     consumer: Consumer | None = None
+
+    retentions_by_topic: dict[str, int] = {}
+
+    for topic_name, topic_config in topics.items():
+        retention_ms = topic_config["settings"].get("retention.ms")
+        if retention_ms is None:
+            errors.append(
+                KeyError(f"Topic '{topic_name}' settings missing required 'retention.ms' field")
+            )
+        else:
+            retentions_by_topic[topic_name] = int(retention_ms)
 
     try:
         admin = get_admin_client(config)
@@ -208,12 +211,18 @@ def get_cluster_latency(
                 continue
 
             for tp in committed_offsets:
-                if tp.topic not in checked_topics:
+                if tp.topic not in retentions_by_topic:
                     continue
 
+                retention_ms = retentions_by_topic[tp.topic]
                 try:
                     latency_ms = get_partition_latency(
-                        consumer, tp.topic, tp.partition, int(tp.offset), timeout
+                        consumer,
+                        tp.topic,
+                        tp.partition,
+                        int(tp.offset),
+                        retention_ms,
+                        timeout,
                     )
                 except Exception as e:
                     errors.append(e)
@@ -246,7 +255,7 @@ def record_consumer_group_latency(
     errors: list[Exception] = []
 
     for cluster_name, cluster_config in config.get_clusters().items():
-        topics = list(config.get_topics_config(cluster_name))
+        topics = config.get_topics_config(cluster_name)
         result = get_cluster_latency(cluster_name, cluster_config, topics, timeout)
 
         for scan in result.scans:
