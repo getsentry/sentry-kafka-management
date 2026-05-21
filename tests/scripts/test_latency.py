@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from click.testing import CliRunner, Result
 
 from sentry_kafka_management.actions.latency.consumer_latency import (
+    ConsumerLatencyResult,
     TopicConsumerLatency,
 )
 from sentry_kafka_management.scripts.latency.consumer_latency import consumer_latency
@@ -28,15 +29,19 @@ def test_consumer_latency_runs_collection_loop_and_emits_metrics(
     temp_config: Path,
 ) -> None:
     metrics_backend = mock_metrics_backend_cls.return_value
-    mock_get_cluster_latency.side_effect = lambda cluster_name, *_args, **_kwargs: [
-        TopicConsumerLatency(
-            cluster_name=cluster_name,
-            group_id="group-a",
-            topic_name="topic1",
-            latency_ms=123.0,
-            partition=0,
+    mock_get_cluster_latency.side_effect = (
+        lambda cluster_name, *_args, **_kwargs: ConsumerLatencyResult(
+            scans=[
+                TopicConsumerLatency(
+                    cluster_name=cluster_name,
+                    group_id="group-a",
+                    topic_name="topic1",
+                    latency_ms=123.0,
+                    partition=0,
+                )
+            ],
         )
-    ]
+    )
 
     mock_sleep.side_effect = [None, KeyboardInterrupt]
 
@@ -64,7 +69,7 @@ def test_consumer_latency_handles_iterations_with_no_scans(
     temp_config: Path,
 ) -> None:
     metrics_backend = mock_metrics_backend_cls.return_value
-    mock_get_cluster_latency.return_value = []
+    mock_get_cluster_latency.return_value = ConsumerLatencyResult(scans=[])
     mock_sleep.side_effect = KeyboardInterrupt
 
     result = runner_invoke_with_statsd(temp_config)

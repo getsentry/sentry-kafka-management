@@ -4,6 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import click.testing
 
+from sentry_kafka_management.actions.latency.consumer_latency import (
+    ConsumerLatencyResult,
+)
 from sentry_kafka_management.cli import main as cli
 
 
@@ -67,7 +70,7 @@ def test_cli_consumer_latency(
     mock_metrics_backend: MagicMock,
     temp_config: Path,
 ) -> None:
-    mock_record_consumer_group_latency.return_value = []
+    mock_record_consumer_group_latency.return_value = ConsumerLatencyResult(scans=[])
     mock_sleep.side_effect = KeyboardInterrupt
 
     runner = click.testing.CliRunner()

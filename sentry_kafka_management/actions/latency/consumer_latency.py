@@ -46,15 +46,26 @@ class TopicConsumerLatency:
     partition: int
 
 
+@dataclass
+class ConsumerLatencyResult:
+    scans: list[TopicConsumerLatency]
+    errors: list[Exception] | None = None
+
+
 class ConsumerGroupListingError(Exception):
     """
     Raised when listing consumer groups returns one or more errors.
     """
 
-    def __init__(self, errors: list[KafkaException]) -> None:
+    def __init__(
+        self,
+        errors: list[KafkaException],
+        valid: list[ConsumerGroupListing] | None = None,
+    ) -> None:
         formatted = "; ".join(str(error) for error in errors)
         super().__init__(f"Failed to list consumer groups ({len(errors)} error(s)): {formatted}")
         self.errors = errors
+        self.valid = valid or []
 
 
 def list_consumer_group_ids(admin: AdminClient) -> list[str]:
@@ -64,13 +75,10 @@ def list_consumer_group_ids(admin: AdminClient) -> list[str]:
     errors: list[KafkaException] = result.errors
     valid: list[ConsumerGroupListing] = result.valid
 
+    group_ids: list[str] = [listing.group_id for listing in valid]
+
     if errors:
-        raise ConsumerGroupListingError(errors)
-
-    group_ids: list[str] = []
-
-    for listing in valid:
-        group_ids.append(listing.group_id)
+        raise ConsumerGroupListingError(errors, valid=valid)
 
     return group_ids
 
@@ -166,68 +174,86 @@ def get_cluster_latency(
     config: ClusterConfig,
     topics: list[str],
     timeout: int,
-) -> list[TopicConsumerLatency]:
+) -> ConsumerLatencyResult:
     consumer_group_id = f"consumer-latency-group-{cluster_name}"
-
-    admin = get_admin_client(config)
-
-    consumer = Consumer(
-        {
-            "enable.auto.commit": False,
-            "group.id": consumer_group_id,
-            **build_broker_config(config),
-        }
-    )
-
     checked_topics = set(topics)
     scans: list[TopicConsumerLatency] = []
+    errors: list[Exception] = []
+    consumer: Consumer | None = None
 
     try:
-        group_ids = list_consumer_group_ids(admin)
+        admin = get_admin_client(config)
+        consumer = Consumer(
+            {
+                "enable.auto.commit": False,
+                "group.id": consumer_group_id,
+                **build_broker_config(config),
+            }
+        )
+
+        try:
+            group_ids = list_consumer_group_ids(admin)
+        except ConsumerGroupListingError as e:
+            errors.extend(e.errors)
+            group_ids = [listing.group_id for listing in e.valid]
+
         for group_id in group_ids:
             if group_id == consumer_group_id:
                 continue
 
-            partitions_by_topic: dict[str, list[tuple[int, int]]] = {}
+            try:
+                committed_offsets = get_committed_offsets(admin, group_id)
+            except Exception as e:
+                errors.append(e)
+                continue
 
-            for tp in get_committed_offsets(admin, group_id):
-                if tp.topic in checked_topics:
-                    partitions_by_topic.setdefault(tp.topic, []).append(
-                        (tp.partition, int(tp.offset))
-                    )
+            for tp in committed_offsets:
+                if tp.topic not in checked_topics:
+                    continue
 
-            for topic, partitions in partitions_by_topic.items():
-                for partition, committed_offset in partitions:
-                    scans.append(
-                        TopicConsumerLatency(
-                            cluster_name=cluster_name,
-                            group_id=group_id,
-                            topic_name=topic,
-                            latency_ms=get_partition_latency(
-                                consumer,
-                                topic,
-                                partition,
-                                committed_offset,
-                                timeout,
-                            ),
-                            partition=partition,
-                        )
+                try:
+                    latency_ms = get_partition_latency(
+                        consumer, tp.topic, tp.partition, int(tp.offset), timeout
                     )
+                except Exception as e:
+                    errors.append(e)
+                    continue
+
+                scans.append(
+                    TopicConsumerLatency(
+                        cluster_name=cluster_name,
+                        group_id=group_id,
+                        topic_name=tp.topic,
+                        latency_ms=latency_ms,
+                        partition=tp.partition,
+                    )
+                )
+    except Exception as e:
+        errors.append(e)
     finally:
-        consumer.close()
+        if consumer is not None:
+            consumer.close()
 
-    return scans
+    return ConsumerLatencyResult(scans=scans, errors=errors or None)
 
 
 def record_consumer_group_latency(
     config: YamlKafkaConfig,
     metrics: MetricsBackend,
     timeout: int = 10,
-) -> list[TopicConsumerLatency]:
+) -> ConsumerLatencyResult:
     scans: list[TopicConsumerLatency] = []
+    errors: list[Exception] = []
+
     for cluster_name, cluster_config in config.get_clusters().items():
         topics = list(config.get_topics_config(cluster_name))
-        for scan in get_cluster_latency(cluster_name, cluster_config, topics, timeout):
+        result = get_cluster_latency(cluster_name, cluster_config, topics, timeout)
+
+        for scan in result.scans:
             emit_topic_consumer_latency(metrics, scan)
             scans.append(scan)
-    return scans
+
+        if result.errors:
+            errors.extend(result.errors)
+
+    return ConsumerLatencyResult(scans=scans, errors=errors or None)

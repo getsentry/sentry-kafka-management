@@ -63,14 +63,23 @@ def consumer_latency(
     click.echo(f"Starting consumer latency collection (interval={interval:.3f}s)")
 
     while True:
-        scans = record_consumer_group_latency_action(kafka_config, metrics_backend, timeout)
-        if scans:
-            for scan in scans:
-                click.echo(
-                    f"Collected latency cluster={scan.cluster_name} "
-                    f"group={scan.group_id} topic={scan.topic_name} "
-                    f"partition={scan.partition} latency_ms={scan.latency_ms:.1f}"
-                )
-        else:
+        result = record_consumer_group_latency_action(kafka_config, metrics_backend, timeout)
+
+        for scan in result.scans:
+            click.echo(
+                f"Collected latency cluster={scan.cluster_name} "
+                f"group={scan.group_id} topic={scan.topic_name} "
+                f"partition={scan.partition} latency_ms={scan.latency_ms:.1f}"
+            )
+
+        if not result.scans and not result.errors:
             click.echo("No consumer latency collected this iteration")
+
+        if result.errors:
+            for error in result.errors:
+                click.echo(f"Error: {error}", err=True)
+            raise click.ClickException(
+                f"Consumer latency collection failed ({len(result.errors)} error(s))"
+            )
+
         time.sleep(interval)
