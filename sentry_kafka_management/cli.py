@@ -14,6 +14,7 @@ from sentry_kafka_management.scripts.clusters import (
     describe_cluster,
     get_cluster_controller,
 )
+from sentry_kafka_management.scripts.latency.consumer_latency import consumer_latency
 from sentry_kafka_management.scripts.local.filesystem import (
     remove_recorded_dynamic_configs,
 )
@@ -32,6 +33,7 @@ from sentry_kafka_management.scripts.topics.placement import compute_topic_place
 COMMANDS = [
     apply_configs,
     compute_topic_placement,
+    consumer_latency,
     describe_topic_partitions,
     describe_broker_configs,
     describe_cluster,
