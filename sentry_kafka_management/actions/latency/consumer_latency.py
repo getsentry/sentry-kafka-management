@@ -178,9 +178,7 @@ def get_cluster_latency(
     for topic_name, topic_config in topics.items():
         retention_ms = topic_config["settings"].get("retention.ms")
         if retention_ms is None:
-            errors.append(
-                KeyError(f"Topic '{topic_name}' settings missing required 'retention.ms' field")
-            )
+            retentions_by_topic[topic_name] = 604800000
         else:
             retentions_by_topic[topic_name] = int(retention_ms)
 

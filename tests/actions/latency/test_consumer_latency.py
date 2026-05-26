@@ -684,7 +684,7 @@ def test_get_cluster_latency_uses_per_topic_retention_when_aged_out(
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
 @patch("sentry_kafka_management.actions.latency.consumer_latency.get_admin_client")
-def test_get_cluster_latency_records_error_and_skips_topic_without_retention(
+def test_get_cluster_latency_uses_default_retention_when_unset(
     mock_get_admin: MagicMock,
     mock_consumer_cls: MagicMock,
 ) -> None:
@@ -696,40 +696,31 @@ def test_get_cluster_latency_records_error_and_skips_topic_without_retention(
     admin.list_consumer_group_offsets.return_value = {
         "group-a": _make_committed_offsets_future(
             "group-a",
-            [
-                TopicPartition("topic-bad", 0, 50),
-                TopicPartition("topic-ok", 0, 50),
-            ],
+            [TopicPartition("topic-no-retention", 0, 5)],
         ),
     }
-    mock_consumer_cls.return_value.get_watermark_offsets.return_value = (0, 100)
-    mock_consumer_cls.return_value.poll.return_value = _make_message(
-        timestamp=(TIMESTAMP_CREATE_TIME, 800)
-    )
-    bad_topic = TopicConfig(
+    mock_consumer_cls.return_value.get_watermark_offsets.return_value = (100, 200)
+    no_retention_topic = TopicConfig(
         partitions=1,
         placement=1,
         replication_factor=1,
         settings={"cleanup.policy": "delete"},
     )
 
-    with patch("time.time", return_value=1.0):
-        result = get_cluster_latency(
-            "cluster1",
-            CLUSTER_CONFIG,
-            topics={"topic-bad": bad_topic, "topic-ok": _topic_config()},
-            timeout=10,
-        )
+    result = get_cluster_latency(
+        "cluster1",
+        CLUSTER_CONFIG,
+        topics={"topic-no-retention": no_retention_topic},
+        timeout=10,
+    )
 
-    assert result.errors is not None
-    assert len(result.errors) == 1
-    assert isinstance(result.errors[0], KeyError)
+    assert result.errors is None
     assert result.scans == [
         TopicConsumerLatency(
             cluster_name="cluster1",
             group_id="group-a",
-            topic_name="topic-ok",
-            latency_ms=200.0,
+            topic_name="topic-no-retention",
+            latency_ms=604_800_000.0,
             partition=0,
         ),
     ]
