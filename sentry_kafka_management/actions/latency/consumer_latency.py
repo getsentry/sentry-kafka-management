@@ -188,6 +188,7 @@ def get_cluster_latency(
             {
                 "enable.auto.commit": False,
                 "group.id": consumer_group_id,
+                "queued.min.messages": 1,
                 **build_broker_config(config),
             }
         )
