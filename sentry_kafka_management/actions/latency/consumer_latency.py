@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from typing import Mapping
@@ -24,6 +25,8 @@ from sentry_kafka_management.actions.latency.metrics import (
 from sentry_kafka_management.brokers import ClusterConfig, TopicConfig, YamlKafkaConfig
 from sentry_kafka_management.connectors.admin import get_admin_client
 from sentry_kafka_management.connectors.kafka_config import build_broker_config
+
+logger = logging.getLogger(__name__)
 
 RETRYABLE_ERRORS = frozenset(
     {
@@ -108,39 +111,40 @@ def read_timestamp_ms(
     consumer.assign([TopicPartition(topic, partition, offset)])
     deadline = time.monotonic() + timeout
 
-    try:
-        while time.monotonic() < deadline:
-            msg = consumer.poll(1.0)
-            if msg is None:
+    while time.monotonic() < deadline:
+        msg = consumer.poll(1.0)
+        if msg is None:
+            continue
+
+        error = msg.error()
+
+        if error is not None:
+            if error.code() not in RETRYABLE_ERRORS:
+                raise KafkaException(error)
+            else:
                 continue
 
-            error = msg.error()
+        ts_type, ts_ms = msg.timestamp()
 
-            if error is not None:
-                if error.code() not in RETRYABLE_ERRORS:
-                    raise KafkaException(error)
-                else:
-                    continue
+        if ts_type == TIMESTAMP_NOT_AVAILABLE:
+            raise ValueError(f"Timestamp not available for {topic}[{partition}] at offset {offset}")
 
-            ts_type, ts_ms = msg.timestamp()
+        if ts_ms < 0:
+            raise ValueError(
+                f"Invalid timestamp {ts_ms} for {topic}[{partition}] at offset {offset}"
+            )
 
-            if ts_type == TIMESTAMP_NOT_AVAILABLE:
-                raise ValueError(
-                    f"Timestamp not available for {topic}[{partition}] at offset {offset}"
-                )
-
-            if ts_ms < 0:
-                raise ValueError(
-                    f"Invalid timestamp {ts_ms} for {topic}[{partition}] at offset {offset}"
-                )
-
-            return int(ts_ms)
-
-        raise TimeoutError(
-            f"Timed out reading timestamp for {topic}[{partition}] at offset {offset}"
+        logger.debug(
+            "Read message timestamp for topic=%s partition=%s offset=%s: ts_type=%s ts_ms=%s",
+            topic,
+            partition,
+            offset,
+            ts_type,
+            ts_ms,
         )
-    finally:
-        consumer.unassign()
+        return int(ts_ms)
+
+    raise TimeoutError(f"Timed out reading timestamp for {topic}[{partition}] at offset {offset}")
 
 
 def get_partition_latency(
@@ -153,8 +157,24 @@ def get_partition_latency(
 ) -> float:
     """Get the latency of a partition."""
 
+    logger.debug(
+        "Collecting latency for topic=%s partition=%s committed_offset=%s",
+        topic,
+        partition,
+        committed_offset,
+    )
+
     low, high = consumer.get_watermark_offsets(
         TopicPartition(topic, partition), timeout=timeout, cached=False
+    )
+
+    logger.debug(
+        "Watermarks for topic=%s partition=%s: low=%s high=%s committed_offset=%s",
+        topic,
+        partition,
+        low,
+        high,
+        committed_offset,
     )
 
     if high <= committed_offset:
@@ -163,10 +183,30 @@ def get_partition_latency(
     if committed_offset < low:
         return float(retention_ms)  # Aged out of retention
 
+    poll_start = time.monotonic()
     ts_ms = read_timestamp_ms(consumer, topic, partition, committed_offset, timeout)
+    poll_ms = (time.monotonic() - poll_start) * 1000.0
+
+    logger.debug(
+        "Polled message for topic=%s partition=%s in poll_ms=%.1f",
+        topic,
+        partition,
+        poll_ms,
+    )
 
     now_ms = int(time.time() * 1000)
-    return float(now_ms - ts_ms)
+    latency_ms = float(now_ms - ts_ms)
+
+    logger.debug(
+        "Computed latency for topic=%s partition=%s: now_ms=%s ts_ms=%s latency_ms=%.1f",
+        topic,
+        partition,
+        now_ms,
+        ts_ms,
+        latency_ms,
+    )
+
+    return latency_ms
 
 
 def get_cluster_latency(
@@ -195,7 +235,6 @@ def get_cluster_latency(
             {
                 "enable.auto.commit": False,
                 "group.id": consumer_group_id,
-                "queued.min.messages": 1,
                 **build_broker_config(config),
             }
         )
