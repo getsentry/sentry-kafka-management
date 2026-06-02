@@ -108,32 +108,39 @@ def read_timestamp_ms(
     consumer.assign([TopicPartition(topic, partition, offset)])
     deadline = time.monotonic() + timeout
 
-    while time.monotonic() < deadline:
-        msg = consumer.poll(1.0)
-        if msg is None:
-            continue
-
-        error = msg.error()
-
-        if error is not None:
-            if error.code() not in RETRYABLE_ERRORS:
-                raise KafkaException(error)
-            else:
+    try:
+        while time.monotonic() < deadline:
+            msg = consumer.poll(1.0)
+            if msg is None:
                 continue
 
-        ts_type, ts_ms = msg.timestamp()
+            error = msg.error()
 
-        if ts_type == TIMESTAMP_NOT_AVAILABLE:
-            raise ValueError(f"Timestamp not available for {topic}[{partition}] at offset {offset}")
+            if error is not None:
+                if error.code() not in RETRYABLE_ERRORS:
+                    raise KafkaException(error)
+                else:
+                    continue
 
-        if ts_ms < 0:
-            raise ValueError(
-                f"Invalid timestamp {ts_ms} for {topic}[{partition}] at offset {offset}"
-            )
+            ts_type, ts_ms = msg.timestamp()
 
-        return int(ts_ms)
+            if ts_type == TIMESTAMP_NOT_AVAILABLE:
+                raise ValueError(
+                    f"Timestamp not available for {topic}[{partition}] at offset {offset}"
+                )
 
-    raise TimeoutError(f"Timed out reading timestamp for {topic}[{partition}] at offset {offset}")
+            if ts_ms < 0:
+                raise ValueError(
+                    f"Invalid timestamp {ts_ms} for {topic}[{partition}] at offset {offset}"
+                )
+
+            return int(ts_ms)
+
+        raise TimeoutError(
+            f"Timed out reading timestamp for {topic}[{partition}] at offset {offset}"
+        )
+    finally:
+        consumer.unassign()
 
 
 def get_partition_latency(
@@ -188,6 +195,7 @@ def get_cluster_latency(
             {
                 "enable.auto.commit": False,
                 "group.id": consumer_group_id,
+                "queued.min.messages": 1,
                 **build_broker_config(config),
             }
         )
