@@ -119,7 +119,16 @@ def test_update_config_state_skips_named_configs(
     )
 
     assert success == []
-    assert errors == []
+    assert errors == [
+        ConfigChange(
+            broker_id="1001",
+            config_name="num.network.threads",
+            is_sensitive=True,
+            op="apply",
+            from_value=None,
+            to_value="1000",
+        ).to_error("Config 'num.network.threads' was skipped on broker 1001")
+    ]
     mock_apply_configs.assert_not_called()
     mock_remove_configs.assert_not_called()
 
