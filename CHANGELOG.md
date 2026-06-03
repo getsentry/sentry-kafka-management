@@ -1,3 +1,21 @@
+## 0.1.11
+
+### New Features ✨
+
+- Add actions to collect consumer latency metrics by @bmcquilkin-sentry in [#73](https://github.com/getsentry/sentry-kafka-management/pull/73)
+
+### Bug Fixes 🐛
+
+- (consumer-latency) Limit message queue size to 1 by @bmcquilkin-sentry in [#74](https://github.com/getsentry/sentry-kafka-management/pull/74)
+- Have skipped configs log an error event for tracking by @evanh in [#76](https://github.com/getsentry/sentry-kafka-management/pull/76)
+
+### Internal Changes 🔧
+
+#### Consumer Latency
+
+- Logging click command by @bmcquilkin-sentry in [#77](https://github.com/getsentry/sentry-kafka-management/pull/77)
+- Revert queue limit, add logging by @bmcquilkin-sentry in [#75](https://github.com/getsentry/sentry-kafka-management/pull/75)
+
 ## 0.1.10
 
 ### New Features ✨
