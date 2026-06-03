@@ -134,7 +134,7 @@ def read_timestamp_ms(
                 f"Invalid timestamp {ts_ms} for {topic}[{partition}] at offset {offset}"
             )
 
-        logger.debug(
+        logger.info(
             "Read message timestamp for topic=%s partition=%s offset=%s: ts_type=%s ts_ms=%s",
             topic,
             partition,
@@ -157,18 +157,27 @@ def get_partition_latency(
 ) -> float:
     """Get the latency of a partition."""
 
-    logger.debug(
+    logger.info(
         "Collecting latency for topic=%s partition=%s committed_offset=%s",
         topic,
         partition,
         committed_offset,
     )
 
+    watermark_start = time.monotonic()
     low, high = consumer.get_watermark_offsets(
         TopicPartition(topic, partition), timeout=timeout, cached=False
     )
+    watermark_ms = (time.monotonic() - watermark_start) * 1000.0
 
-    logger.debug(
+    logger.info(
+        "Watermark lookup for topic=%s partition=%s took %.1fms",
+        topic,
+        partition,
+        watermark_ms,
+    )
+
+    logger.info(
         "Watermarks for topic=%s partition=%s: low=%s high=%s committed_offset=%s",
         topic,
         partition,
@@ -187,7 +196,7 @@ def get_partition_latency(
     ts_ms = read_timestamp_ms(consumer, topic, partition, committed_offset, timeout)
     poll_ms = (time.monotonic() - poll_start) * 1000.0
 
-    logger.debug(
+    logger.info(
         "Polled message for topic=%s partition=%s in poll_ms=%.1f",
         topic,
         partition,
@@ -197,7 +206,7 @@ def get_partition_latency(
     now_ms = int(time.time() * 1000)
     latency_ms = float(now_ms - ts_ms)
 
-    logger.debug(
+    logger.info(
         "Computed latency for topic=%s partition=%s: now_ms=%s ts_ms=%s latency_ms=%.1f",
         topic,
         partition,

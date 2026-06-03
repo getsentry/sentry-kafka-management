@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import time
 from pathlib import Path
 
@@ -47,16 +48,30 @@ from sentry_kafka_management.brokers import YamlKafkaConfig
     type=int,
     help="How long in seconds to wait before Kafka requests time out. Defaults to 10s.",
 )
+@click.option(
+    "-l",
+    "--log-level",
+    required=False,
+    default="DEBUG",
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
+    help="Logging verbosity. DEBUG (default) shows per-partition latency details.",
+)
 def consumer_latency(
     config: Path,
     statsd_host: str,
     statsd_port: int,
     interval: float,
     timeout: int,
+    log_level: str,
 ) -> None:
     """
     Emit Kafka consumer latency metrics for configured clusters.
     """
+    logging.basicConfig(
+        level=log_level.upper(),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+
     kafka_config = YamlKafkaConfig(config)
     metrics_backend = DatadogMetricsBackend(statsd_host, statsd_port)
 
