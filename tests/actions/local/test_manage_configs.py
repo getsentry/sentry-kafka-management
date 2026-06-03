@@ -123,7 +123,7 @@ def test_update_config_state_skips_named_configs(
         ConfigChange(
             broker_id="1001",
             config_name="num.network.threads",
-            is_sensitive=False,
+            is_sensitive=True,
             op="apply",
             from_value=None,
             to_value="1000",
