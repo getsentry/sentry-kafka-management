@@ -4,6 +4,7 @@ from typing import Any
 from confluent_kafka.admin import AdminClient  # type: ignore[import-untyped]
 
 from sentry_kafka_management.actions.brokers.configs import (
+    ConfigChange,
     apply_configs,
     remove_dynamic_configs,
 )
@@ -59,9 +60,20 @@ def update_config_state(
     kafka_configs: dict[str, Config] = {config.config_name: config for config in kafka_configs_list}
 
     configs_to_apply: dict[str, str] = {}
+    configs_skipped: list[dict[str, Any]] = []  # Same format as apply_errors and remove_errors
 
     for config_name, config_value in emergency_configs.items():
         if config_name in skip_config_names:
+            configs_skipped.append(
+                ConfigChange(
+                    broker_id=str(broker_id),
+                    config_name=config_name,
+                    is_sensitive=False,
+                    op="apply",
+                    from_value=None,
+                    to_value=config_value,
+                ).to_error(f"Config '{config_name}' was skipped on broker {broker_id}")
+            )
             continue
         # Skip if dynamic value already matches the emergency config
         if config_name in kafka_configs:
@@ -145,4 +157,4 @@ def update_config_state(
             admin_client, configs_to_remove, [str(broker_id)], dry_run=dry_run
         )
 
-    return apply_success + remove_success, apply_errors + remove_errors
+    return apply_success + remove_success, apply_errors + remove_errors + configs_skipped
