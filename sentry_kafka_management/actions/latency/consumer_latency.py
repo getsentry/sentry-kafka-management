@@ -164,8 +164,17 @@ def get_partition_latency(
         committed_offset,
     )
 
+    watermark_start = time.monotonic()
     low, high = consumer.get_watermark_offsets(
         TopicPartition(topic, partition), timeout=timeout, cached=False
+    )
+    watermark_ms = (time.monotonic() - watermark_start) * 1000.0
+
+    logger.info(
+        "Watermark lookup for topic=%s partition=%s took %.1fms",
+        topic,
+        partition,
+        watermark_ms,
     )
 
     logger.info(
