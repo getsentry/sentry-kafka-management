@@ -68,7 +68,7 @@ def update_config_state(
                 ConfigChange(
                     broker_id=str(broker_id),
                     config_name=config_name,
-                    is_sensitive=False,
+                    is_sensitive=True,  # No need to expose the value
                     op="apply",
                     from_value=None,
                     to_value=config_value,
