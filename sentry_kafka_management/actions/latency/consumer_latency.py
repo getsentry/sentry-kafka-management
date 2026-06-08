@@ -256,6 +256,8 @@ def get_cluster_latency(
         max_partitions = max(max_partitions, topic_config["partitions"])
 
     consumer_config = {
+        "fetch.max.bytes": 1,
+        "max.partition.fetch.bytes": 1,
         "enable.auto.commit": False,
         "group.id": consumer_group_id,
         **build_broker_config(config),
