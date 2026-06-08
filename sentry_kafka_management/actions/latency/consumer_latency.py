@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Mapping
 
@@ -36,6 +37,15 @@ RETRYABLE_ERRORS = frozenset(
         KafkaError.COORDINATOR_LOAD_IN_PROGRESS,
     }
 )
+
+
+@dataclass
+class _PartitionScan:
+    group_id: str
+    topic: str
+    partition: int
+    committed_offset: int
+    retention_ms: int
 
 
 @dataclass
@@ -84,20 +94,26 @@ def list_consumer_group_ids(admin: AdminClient) -> list[str]:
     return group_ids
 
 
-def get_committed_offsets(admin: AdminClient, group_id: str) -> list[TopicPartition]:
-    """Get the committed offsets for a consumer group."""
-    result: ConsumerGroupTopicPartitions = admin.list_consumer_group_offsets(
-        [ConsumerGroupTopicPartitions(group_id)]
-    )[group_id].result()
-
-    committed: list[TopicPartition] = []
-
-    for partition in result.topic_partitions:
-        if partition.error is not None:
-            raise KafkaException(partition.error)
-        committed.append(partition)
-
-    return committed
+def get_committed_offsets(
+    admin: AdminClient, group_ids: list[str]
+) -> dict[str, list[TopicPartition] | Exception]:
+    """Get committed offsets for one or more consumer groups."""
+    offset_futures = admin.list_consumer_group_offsets(
+        [ConsumerGroupTopicPartitions(group_id) for group_id in group_ids]
+    )
+    results: dict[str, list[TopicPartition] | Exception] = {}
+    for group_id in group_ids:
+        try:
+            cgtp: ConsumerGroupTopicPartitions = offset_futures[group_id].result()
+            committed: list[TopicPartition] = []
+            for partition in cgtp.topic_partitions:
+                if partition.error is not None:
+                    raise KafkaException(partition.error)
+                committed.append(partition)
+            results[group_id] = committed
+        except Exception as e:
+            results[group_id] = e
+    return results
 
 
 def read_timestamp_ms(
@@ -227,9 +243,9 @@ def get_cluster_latency(
     consumer_group_id = f"consumer-latency-group-{cluster_name}"
     scans: list[TopicConsumerLatency] = []
     errors: list[Exception] = []
-    consumer: Consumer | None = None
 
     retentions_by_topic: dict[str, int] = {}
+    max_partitions = 1
 
     for topic_name, topic_config in topics.items():
         retention_ms = topic_config["settings"].get("retention.ms")
@@ -237,16 +253,16 @@ def get_cluster_latency(
             retentions_by_topic[topic_name] = 604800000
         else:
             retentions_by_topic[topic_name] = int(retention_ms)
+        max_partitions = max(max_partitions, topic_config["partitions"])
+
+    consumer_config = {
+        "enable.auto.commit": False,
+        "group.id": consumer_group_id,
+        **build_broker_config(config),
+    }
 
     try:
         admin = get_admin_client(config)
-        consumer = Consumer(
-            {
-                "enable.auto.commit": False,
-                "group.id": consumer_group_id,
-                **build_broker_config(config),
-            }
-        )
 
         try:
             group_ids = list_consumer_group_ids(admin)
@@ -254,48 +270,63 @@ def get_cluster_latency(
             errors.extend(e.errors)
             group_ids = [listing.group_id for listing in e.valid]
 
-        for group_id in group_ids:
-            if group_id == consumer_group_id:
-                continue
+        scan_group_ids = [g for g in group_ids if g != consumer_group_id]
+        offsets_by_group = get_committed_offsets(admin, scan_group_ids)
 
-            try:
-                committed_offsets = get_committed_offsets(admin, group_id)
-            except Exception as e:
-                errors.append(e)
+        work: list[_PartitionScan] = []
+        for group_id, committed_or_exc in offsets_by_group.items():
+            if isinstance(committed_or_exc, Exception):
+                errors.append(committed_or_exc)
                 continue
-
-            for tp in committed_offsets:
+            for tp in committed_or_exc:
                 if tp.topic not in retentions_by_topic:
                     continue
+                work.append(
+                    _PartitionScan(
+                        group_id=group_id,
+                        topic=tp.topic,
+                        partition=tp.partition,
+                        committed_offset=int(tp.offset),
+                        retention_ms=retentions_by_topic[tp.topic],
+                    )
+                )
 
-                retention_ms = retentions_by_topic[tp.topic]
+        if work:
+            worker_count = min(max_partitions, len(work))
+
+            def scan(item: _PartitionScan) -> TopicConsumerLatency:
+                consumer = Consumer(dict(consumer_config))
                 try:
                     latency_ms = get_partition_latency(
                         consumer,
-                        tp.topic,
-                        tp.partition,
-                        int(tp.offset),
-                        retention_ms,
+                        item.topic,
+                        item.partition,
+                        item.committed_offset,
+                        item.retention_ms,
                         timeout,
                     )
-                except Exception as e:
-                    errors.append(e)
-                    continue
-
-                scans.append(
-                    TopicConsumerLatency(
-                        cluster_name=cluster_name,
-                        group_id=group_id,
-                        topic_name=tp.topic,
-                        latency_ms=latency_ms,
-                        partition=tp.partition,
-                    )
+                finally:
+                    consumer.close()
+                return TopicConsumerLatency(
+                    cluster_name=cluster_name,
+                    group_id=item.group_id,
+                    topic_name=item.topic,
+                    latency_ms=latency_ms,
+                    partition=item.partition,
                 )
+
+            with ThreadPoolExecutor(
+                max_workers=worker_count,
+                thread_name_prefix=f"latency-{cluster_name}",
+            ) as executor:
+                futures = [executor.submit(scan, item) for item in work]
+                for future in as_completed(futures):
+                    try:
+                        scans.append(future.result())
+                    except Exception as e:
+                        errors.append(e)
     except Exception as e:
         errors.append(e)
-    finally:
-        if consumer is not None:
-            consumer.close()
 
     return ConsumerLatencyResult(scans=scans, errors=errors or None)
 
@@ -307,15 +338,36 @@ def record_consumer_group_latency(
 ) -> ConsumerLatencyResult:
     scans: list[TopicConsumerLatency] = []
     errors: list[Exception] = []
+    clusters = config.get_clusters()
 
-    for cluster_name, cluster_config in config.get_clusters().items():
+    def run_cluster(cluster_name: str, cluster_config: ClusterConfig) -> ConsumerLatencyResult:
         topics = config.get_topics_config(cluster_name)
-        result = get_cluster_latency(cluster_name, cluster_config, topics, timeout)
+        return get_cluster_latency(cluster_name, cluster_config, topics, timeout)
 
+    results: dict[str, ConsumerLatencyResult] = {}
+
+    if clusters:
+        with ThreadPoolExecutor(
+            max_workers=len(clusters), thread_name_prefix="latency-cluster"
+        ) as executor:
+            futures = {
+                executor.submit(run_cluster, name, cluster_config): name
+                for name, cluster_config in clusters.items()
+            }
+            for future in as_completed(futures):
+                cluster_name = futures[future]
+                try:
+                    results[cluster_name] = future.result()
+                except Exception as e:
+                    errors.append(e)
+
+    for cluster_name in clusters:
+        result = results.get(cluster_name)
+        if result is None:
+            continue
         for scan in result.scans:
             emit_topic_consumer_latency(metrics, scan)
             scans.append(scan)
-
         if result.errors:
             errors.extend(result.errors)
 
