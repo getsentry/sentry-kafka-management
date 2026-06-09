@@ -347,18 +347,19 @@ def get_cluster_latency(
                         except Exception as e:
                             errors.append(e)
             finally:
-                with ThreadPoolExecutor(
-                    max_workers=len(consumers),
-                    thread_name_prefix=f"clr-close-{cluster_name}",
-                ) as close_executor:
-                    close_futures = [
-                        close_executor.submit(consumer.close) for consumer in consumers
-                    ]
-                    for close_future in as_completed(close_futures):
-                        try:
-                            close_future.result()
-                        except Exception as e:
-                            errors.append(e)
+                if consumers:
+                    with ThreadPoolExecutor(
+                        max_workers=len(consumers),
+                        thread_name_prefix=f"clr-close-{cluster_name}",
+                    ) as close_executor:
+                        close_futures = [
+                            close_executor.submit(consumer.close) for consumer in consumers
+                        ]
+                        for close_future in as_completed(close_futures):
+                            try:
+                                close_future.result()
+                            except Exception as e:
+                                errors.append(e)
     except Exception as e:
         errors.append(e)
 
