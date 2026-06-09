@@ -469,6 +469,59 @@ def test_get_cluster_latency_reports_latency_per_partition(
     assert result.errors is None
 
 
+@patch("sentry_kafka_management.actions.latency.consumer_latency.ThreadPoolExecutor")
+@patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
+@patch("sentry_kafka_management.actions.latency.consumer_latency.get_admin_client")
+def test_get_cluster_latency_caps_scan_workers(
+    mock_get_admin: MagicMock,
+    mock_consumer_cls: MagicMock,
+    mock_executor_cls: MagicMock,
+) -> None:
+    admin = Mock()
+    mock_get_admin.return_value = admin
+    admin.list_consumer_groups.return_value = _make_list_groups_result(
+        valid=[_make_group_listing("group-a")],
+    )
+    partitions = [TopicPartition("topic-a", p, 50) for p in range(10)]
+    admin.list_consumer_group_offsets.return_value = {
+        "group-a": _make_committed_offsets_future("group-a", partitions),
+    }
+
+    consumer = mock_consumer_cls.return_value
+    consumer.get_watermark_offsets.return_value = (0, 100)
+    consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 800))
+
+    executor = MagicMock()
+    mock_executor_cls.return_value.__enter__.return_value = executor
+
+    def submit(_fn, _item):
+        future = Future()
+        future.set_result(
+            TopicConsumerLatency(
+                cluster_name="cluster1",
+                group_id="group-a",
+                topic_name="topic-a",
+                latency_ms=0.0,
+                partition=0,
+            )
+        )
+        return future
+
+    executor.submit.side_effect = submit
+
+    with patch("time.time", return_value=1.0):
+        get_cluster_latency(
+            "cluster1",
+            CLUSTER_CONFIG,
+            topics={"topic-a": _topic_config(partitions=10)},
+            timeout=10,
+            max_workers=4,
+        )
+
+    scan_call = mock_executor_cls.call_args_list[0]
+    assert scan_call.kwargs["max_workers"] == 4
+
+
 @patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
 @patch("sentry_kafka_management.actions.latency.consumer_latency.get_admin_client")
 def test_get_cluster_latency_skips_uncommitted_partitions(

@@ -30,6 +30,8 @@ from sentry_kafka_management.connectors.kafka_config import build_broker_config
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_MAX_WORKERS = 128
+
 RETRYABLE_ERRORS = frozenset(
     {
         KafkaError.REQUEST_TIMED_OUT,
@@ -248,6 +250,7 @@ def get_cluster_latency(
     config: ClusterConfig,
     topics: Mapping[str, TopicConfig],
     timeout: int,
+    max_workers: int = DEFAULT_MAX_WORKERS,
 ) -> ConsumerLatencyResult:
     consumer_group_id = f"consumer-latency-group-{cluster_name}"
     scans: list[TopicConsumerLatency] = []
@@ -303,7 +306,7 @@ def get_cluster_latency(
                 )
 
         if work:
-            worker_count = min(len(work), 128)
+            worker_count = min(len(work), max_workers)
 
             consumers: list[Consumer] = []
             consumers_lock = threading.Lock()
@@ -372,6 +375,7 @@ def record_consumer_group_latency(
     config: YamlKafkaConfig,
     metrics: MetricsBackend,
     timeout: int = 10,
+    max_workers: int = DEFAULT_MAX_WORKERS,
 ) -> ConsumerLatencyResult:
     scans: list[TopicConsumerLatency] = []
     errors: list[Exception] = []
@@ -380,7 +384,7 @@ def record_consumer_group_latency(
     for cluster_name, cluster_config in clusters.items():
         try:
             topics = config.get_topics_config(cluster_name)
-            result = get_cluster_latency(cluster_name, cluster_config, topics, timeout)
+            result = get_cluster_latency(cluster_name, cluster_config, topics, timeout, max_workers)
         except Exception as e:
             errors.append(e)
             continue
