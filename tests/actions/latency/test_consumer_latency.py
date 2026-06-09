@@ -373,7 +373,7 @@ def test_get_cluster_latency_skips_own_consumer_group(
 
     assert result.scans == []
     assert result.errors is None
-    admin.list_consumer_group_offsets.assert_called_once()
+    admin.list_consumer_group_offsets.assert_not_called()
     mock_consumer_cls.assert_not_called()
 
 
@@ -570,10 +570,10 @@ def test_get_cluster_latency_continues_after_committed_offsets_error(
     admin.list_consumer_groups.return_value = _make_list_groups_result(
         valid=[_make_group_listing("group-a"), _make_group_listing("group-b")],
     )
-    admin.list_consumer_group_offsets.return_value = {
-        "group-a": _make_committed_offsets_future("group-a", [TopicPartition("topic-a", 0, 50)]),
-        "group-b": _make_errored_committed_offsets_future(KafkaException("boom")),
-    }
+    admin.list_consumer_group_offsets.side_effect = [
+        {"group-a": _make_committed_offsets_future("group-a", [TopicPartition("topic-a", 0, 50)])},
+        {"group-b": _make_errored_committed_offsets_future(KafkaException("boom"))},
+    ]
 
     consumer = mock_consumer_cls.return_value
     consumer.get_watermark_offsets.return_value = (0, 100)
