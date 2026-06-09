@@ -377,31 +377,14 @@ def record_consumer_group_latency(
     errors: list[Exception] = []
     clusters = config.get_clusters()
 
-    def run_cluster(cluster_name: str, cluster_config: ClusterConfig) -> ConsumerLatencyResult:
-        topics = config.get_topics_config(cluster_name)
-        return get_cluster_latency(cluster_name, cluster_config, topics, timeout)
-
-    results: dict[str, ConsumerLatencyResult] = {}
-
-    if clusters:
-        with ThreadPoolExecutor(
-            max_workers=len(clusters), thread_name_prefix="latency-cluster"
-        ) as executor:
-            futures = {
-                executor.submit(run_cluster, name, cluster_config): name
-                for name, cluster_config in clusters.items()
-            }
-            for future in as_completed(futures):
-                cluster_name = futures[future]
-                try:
-                    results[cluster_name] = future.result()
-                except Exception as e:
-                    errors.append(e)
-
-    for cluster_name in clusters:
-        result = results.get(cluster_name)
-        if result is None:
+    for cluster_name, cluster_config in clusters.items():
+        try:
+            topics = config.get_topics_config(cluster_name)
+            result = get_cluster_latency(cluster_name, cluster_config, topics, timeout)
+        except Exception as e:
+            errors.append(e)
             continue
+
         for scan in result.scans:
             emit_topic_consumer_latency(metrics, scan)
             scans.append(scan)
