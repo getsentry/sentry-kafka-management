@@ -7,6 +7,9 @@ from pathlib import Path
 import click
 
 from sentry_kafka_management.actions.latency.consumer_latency import (
+    DEFAULT_MAX_WORKERS,
+)
+from sentry_kafka_management.actions.latency.consumer_latency import (
     record_consumer_group_latency as record_consumer_group_latency_action,
 )
 from sentry_kafka_management.actions.latency.metrics import DatadogMetricsBackend
@@ -52,7 +55,7 @@ from sentry_kafka_management.brokers import YamlKafkaConfig
     "-w",
     "--max-workers",
     required=False,
-    default=128,
+    default=DEFAULT_MAX_WORKERS,
     type=click.IntRange(min=1),
     help="Maximum concurrent partition scans per cluster. Defaults to 128.",
 )
