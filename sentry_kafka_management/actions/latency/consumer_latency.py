@@ -253,9 +253,11 @@ def get_partition_latency(
 
 
 def get_consumer_group_latency(
+    admin: AdminClient,
     consumer_config: Mapping[str, object],
     cluster_name: str,
-    group_scans: list[PartitionScan],
+    group_id: str,
+    retentions_by_topic: Mapping[str, int],
     timeout: int,
 ) -> ConsumerLatencyResult:
     """
@@ -263,6 +265,26 @@ def get_consumer_group_latency(
     """
     scans: list[TopicConsumerLatency] = []
     errors: list[Exception] = []
+
+    committed = get_committed_offsets(admin, [group_id])[group_id]
+    if isinstance(committed, Exception):
+        errors.append(committed)
+        return ConsumerLatencyResult(scans=scans, errors=errors)
+
+    group_scans = [
+        PartitionScan(
+            group_id=group_id,
+            topic=tp.topic,
+            partition=tp.partition,
+            committed_offset=int(tp.offset),
+            retention_ms=retentions_by_topic[tp.topic],
+        )
+        for tp in committed
+        if tp.topic in retentions_by_topic
+    ]
+
+    if not group_scans:
+        return ConsumerLatencyResult(scans=scans, errors=errors)
 
     consumer = Consumer(dict(consumer_config))
     try:
@@ -337,27 +359,8 @@ def get_cluster_latency(
             group_ids = [listing.group_id for listing in e.valid]
 
         scan_group_ids = [g for g in group_ids if g != consumer_group_id]
-        offsets_by_group = get_committed_offsets(admin, scan_group_ids)
 
-        scans_by_group: dict[str, list[PartitionScan]] = {}
-        for group_id, committed_or_exc in offsets_by_group.items():
-            if isinstance(committed_or_exc, Exception):
-                errors.append(committed_or_exc)
-                continue
-            for tp in committed_or_exc:
-                if tp.topic not in retentions_by_topic:
-                    continue
-                scans_by_group.setdefault(group_id, []).append(
-                    PartitionScan(
-                        group_id=group_id,
-                        topic=tp.topic,
-                        partition=tp.partition,
-                        committed_offset=int(tp.offset),
-                        retention_ms=retentions_by_topic[tp.topic],
-                    )
-                )
-
-        if scans_by_group:
+        if scan_group_ids:
             with ThreadPoolExecutor(
                 max_workers=max_workers,
                 thread_name_prefix=f"latency-{cluster_name}",
@@ -365,12 +368,14 @@ def get_cluster_latency(
                 futures = [
                     executor.submit(
                         get_consumer_group_latency,
+                        admin,
                         consumer_config,
                         cluster_name,
-                        group_scans,
+                        group_id,
+                        retentions_by_topic,
                         timeout,
                     )
-                    for group_scans in scans_by_group.values()
+                    for group_id in scan_group_ids
                 ]
                 for future in as_completed(futures):
                     try:

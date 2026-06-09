@@ -627,10 +627,18 @@ def test_get_cluster_latency_continues_after_committed_offsets_error(
     admin.list_consumer_groups.return_value = _make_list_groups_result(
         valid=[_make_group_listing("group-a"), _make_group_listing("group-b")],
     )
-    admin.list_consumer_group_offsets.side_effect = [
-        {"group-a": _make_committed_offsets_future("group-a", [TopicPartition("topic-a", 0, 50)])},
-        {"group-b": _make_errored_committed_offsets_future(KafkaException("boom"))},
-    ]
+    offsets_by_group = {
+        "group-a": _make_committed_offsets_future("group-a", [TopicPartition("topic-a", 0, 50)]),
+        "group-b": _make_errored_committed_offsets_future(KafkaException("boom")),
+    }
+
+    def list_offsets(
+        reqs: list[ConsumerGroupTopicPartitions],
+    ) -> dict[str, Future[ConsumerGroupTopicPartitions]]:
+        group_id = reqs[0].group_id
+        return {group_id: offsets_by_group[group_id]}
+
+    admin.list_consumer_group_offsets.side_effect = list_offsets
 
     consumer = mock_consumer_cls.return_value
     consumer.get_watermark_offsets.return_value = (0, 100)
