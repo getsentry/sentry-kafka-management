@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -253,6 +252,51 @@ def get_partition_latency(
     return latency_ms
 
 
+def get_consumer_group_latency(
+    consumer_config: Mapping[str, object],
+    cluster_name: str,
+    group_scans: list[PartitionScan],
+    timeout: int,
+) -> ConsumerLatencyResult:
+    """
+    Scan every partition for a single consumer group on one dedicated consumer.
+    """
+    scans: list[TopicConsumerLatency] = []
+    errors: list[Exception] = []
+
+    consumer = Consumer(dict(consumer_config))
+    try:
+        for item in group_scans:
+            try:
+                latency_ms = get_partition_latency(
+                    consumer,
+                    item.topic,
+                    item.partition,
+                    item.committed_offset,
+                    item.retention_ms,
+                    timeout,
+                )
+            except Exception as e:
+                errors.append(e)
+                continue
+            scans.append(
+                TopicConsumerLatency(
+                    cluster_name=cluster_name,
+                    group_id=item.group_id,
+                    topic_name=item.topic,
+                    latency_ms=latency_ms,
+                    partition=item.partition,
+                )
+            )
+    finally:
+        try:
+            consumer.close()
+        except Exception as e:
+            errors.append(e)
+
+    return ConsumerLatencyResult(scans=scans, errors=errors)
+
+
 def get_cluster_latency(
     cluster_name: str,
     config: ClusterConfig,
@@ -295,7 +339,7 @@ def get_cluster_latency(
         scan_group_ids = [g for g in group_ids if g != consumer_group_id]
         offsets_by_group = get_committed_offsets(admin, scan_group_ids)
 
-        work: list[PartitionScan] = []
+        scans_by_group: dict[str, list[PartitionScan]] = {}
         for group_id, committed_or_exc in offsets_by_group.items():
             if isinstance(committed_or_exc, Exception):
                 errors.append(committed_or_exc)
@@ -303,7 +347,7 @@ def get_cluster_latency(
             for tp in committed_or_exc:
                 if tp.topic not in retentions_by_topic:
                     continue
-                work.append(
+                scans_by_group.setdefault(group_id, []).append(
                     PartitionScan(
                         group_id=group_id,
                         topic=tp.topic,
@@ -313,62 +357,28 @@ def get_cluster_latency(
                     )
                 )
 
-        if work:
-            worker_count = min(len(work), max_workers)
-
-            consumers: list[Consumer] = []
-            consumer_local = threading.local()
-
-            def get_consumer() -> Consumer:
-                consumer = getattr(consumer_local, "consumer", None)
-                if consumer is None:
-                    consumer = Consumer(dict(consumer_config))
-                    consumer_local.consumer = consumer
-                    consumers.append(consumer)
-                return consumer
-
-            def scan(item: PartitionScan) -> TopicConsumerLatency:
-                latency_ms = get_partition_latency(
-                    get_consumer(),
-                    item.topic,
-                    item.partition,
-                    item.committed_offset,
-                    item.retention_ms,
-                    timeout,
-                )
-                return TopicConsumerLatency(
-                    cluster_name=cluster_name,
-                    group_id=item.group_id,
-                    topic_name=item.topic,
-                    latency_ms=latency_ms,
-                    partition=item.partition,
-                )
-
-            try:
-                with ThreadPoolExecutor(
-                    max_workers=worker_count,
-                    thread_name_prefix=f"latency-{cluster_name}",
-                ) as executor:
-                    futures = [executor.submit(scan, item) for item in work]
-                    for future in as_completed(futures):
-                        try:
-                            scans.append(future.result())
-                        except Exception as e:
-                            errors.append(e)
-            finally:
-                if consumers:
-                    with ThreadPoolExecutor(
-                        max_workers=len(consumers),
-                        thread_name_prefix=f"clr-close-{cluster_name}",
-                    ) as close_executor:
-                        close_futures = [
-                            close_executor.submit(consumer.close) for consumer in consumers
-                        ]
-                        for close_future in as_completed(close_futures):
-                            try:
-                                close_future.result()
-                            except Exception as e:
-                                errors.append(e)
+        if scans_by_group:
+            with ThreadPoolExecutor(
+                max_workers=max_workers,
+                thread_name_prefix=f"latency-{cluster_name}",
+            ) as executor:
+                futures = [
+                    executor.submit(
+                        get_consumer_group_latency,
+                        consumer_config,
+                        cluster_name,
+                        group_scans,
+                        timeout,
+                    )
+                    for group_scans in scans_by_group.values()
+                ]
+                for future in as_completed(futures):
+                    try:
+                        group_result = future.result()
+                        scans.extend(group_result.scans)
+                        errors.extend(group_result.errors)
+                    except Exception as e:
+                        errors.append(e)
     except Exception as e:
         errors.append(e)
 

@@ -494,15 +494,19 @@ def test_get_cluster_latency_caps_scan_workers(
     executor = MagicMock()
     mock_executor_cls.return_value.__enter__.return_value = executor
 
-    def submit(_fn: object, _item: object) -> Future[TopicConsumerLatency]:
-        future: Future[TopicConsumerLatency] = Future()
+    def submit(_fn: object, *args: object) -> Future[ConsumerLatencyResult]:
+        future: Future[ConsumerLatencyResult] = Future()
         future.set_result(
-            TopicConsumerLatency(
-                cluster_name="cluster1",
-                group_id="group-a",
-                topic_name="topic-a",
-                latency_ms=0.0,
-                partition=0,
+            ConsumerLatencyResult(
+                scans=[
+                    TopicConsumerLatency(
+                        cluster_name="cluster1",
+                        group_id="group-a",
+                        topic_name="topic-a",
+                        latency_ms=0.0,
+                        partition=0,
+                    )
+                ],
             )
         )
         return future
