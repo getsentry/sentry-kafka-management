@@ -43,7 +43,7 @@ RETRYABLE_ERRORS = frozenset(
 
 
 @dataclass
-class _PartitionScan:
+class PartitionScan:
     group_id: str
     topic: str
     partition: int
@@ -287,7 +287,7 @@ def get_cluster_latency(
         scan_group_ids = [g for g in group_ids if g != consumer_group_id]
         offsets_by_group = get_committed_offsets(admin, scan_group_ids)
 
-        work: list[_PartitionScan] = []
+        work: list[PartitionScan] = []
         for group_id, committed_or_exc in offsets_by_group.items():
             if isinstance(committed_or_exc, Exception):
                 errors.append(committed_or_exc)
@@ -296,7 +296,7 @@ def get_cluster_latency(
                 if tp.topic not in retentions_by_topic:
                     continue
                 work.append(
-                    _PartitionScan(
+                    PartitionScan(
                         group_id=group_id,
                         topic=tp.topic,
                         partition=tp.partition,
@@ -321,7 +321,7 @@ def get_cluster_latency(
                         consumers.append(consumer)
                 return consumer
 
-            def scan(item: _PartitionScan) -> TopicConsumerLatency:
+            def scan(item: PartitionScan) -> TopicConsumerLatency:
                 latency_ms = get_partition_latency(
                     get_consumer(),
                     item.topic,
