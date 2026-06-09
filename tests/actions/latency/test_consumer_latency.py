@@ -372,7 +372,7 @@ def test_get_cluster_latency_skips_own_consumer_group(
     )
 
     assert result.scans == []
-    assert result.errors is None
+    assert len(result.errors) == 0
     admin.list_consumer_group_offsets.assert_not_called()
     mock_consumer_cls.assert_not_called()
 
@@ -408,7 +408,7 @@ def test_get_cluster_latency_filters_unconfigured_topics(
         )
 
     assert [scan.topic_name for scan in result.scans] == ["topic-a"]
-    assert result.errors is None
+    assert len(result.errors) == 0
     for call in consumer.get_watermark_offsets.call_args_list:
         assert call.args[0].topic == "topic-a"
 
@@ -466,7 +466,7 @@ def test_get_cluster_latency_reports_latency_per_partition(
             partition=1,
         ),
     ]
-    assert result.errors is None
+    assert len(result.errors) == 0
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.ThreadPoolExecutor")
@@ -559,7 +559,7 @@ def test_get_cluster_latency_skips_uncommitted_partitions(
             partition=0,
         ),
     ]
-    assert result.errors is None
+    assert len(result.errors) == 0
     consumer.get_watermark_offsets.assert_called_once()
 
 
@@ -586,7 +586,7 @@ def test_get_cluster_latency_skips_groups_with_no_matching_topics(
     )
 
     assert result.scans == []
-    assert result.errors is None
+    assert len(result.errors) == 0
     mock_consumer_cls.return_value.get_watermark_offsets.assert_not_called()
 
 
@@ -736,7 +736,7 @@ def test_get_cluster_latency_uses_per_topic_retention_when_aged_out(
         timeout=10,
     )
 
-    assert result.errors is None
+    assert len(result.errors) == 0
     assert {(s.topic_name, s.latency_ms) for s in result.scans} == {
         ("topic-short", 5_000.0),
         ("topic-long", 86_400_000.0),
@@ -775,7 +775,7 @@ def test_get_cluster_latency_uses_default_retention_when_unset(
         timeout=10,
     )
 
-    assert result.errors is None
+    assert len(result.errors) == 0
     assert result.scans == [
         TopicConsumerLatency(
             cluster_name="cluster1",
@@ -819,7 +819,7 @@ def test_record_consumer_group_latency_emits_one_histogram_per_scan(
     result = record_consumer_group_latency(config, metrics)
 
     assert len(result.scans) == 3
-    assert result.errors is None
+    assert len(result.errors) == 0
     assert [latency for _, latency, _ in metrics.histograms] == [100.0, 200.0, 50.0]
     cluster_tags = [tags["cluster"] for _, _, tags in metrics.histograms if tags]
     assert cluster_tags == ["cluster1", "cluster1", "cluster2"]
@@ -840,7 +840,7 @@ def test_record_consumer_group_latency_emits_nothing_when_no_clusters_have_laten
     result = record_consumer_group_latency(config, metrics)
 
     assert result.scans == []
-    assert result.errors is None
+    assert len(result.errors) == 0
     assert metrics.histograms == []
 
 

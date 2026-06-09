@@ -63,7 +63,15 @@ class TopicConsumerLatency:
 @dataclass
 class ConsumerLatencyResult:
     scans: list[TopicConsumerLatency]
-    errors: list[Exception] | None = None
+    errors: list[Exception]
+
+    def __init__(
+        self,
+        scans: list[TopicConsumerLatency],
+        errors: list[Exception] | None = None,
+    ) -> None:
+        self.scans = scans
+        self.errors = errors or []
 
 
 class ConsumerGroupListingError(Exception):
@@ -74,7 +82,7 @@ class ConsumerGroupListingError(Exception):
     def __init__(
         self,
         errors: list[KafkaException],
-        valid: list[ConsumerGroupListing] | None = None,
+        valid: list[ConsumerGroupListing],
     ) -> None:
         formatted = "; ".join(str(error) for error in errors)
         super().__init__(f"Failed to list consumer groups ({len(errors)} error(s)): {formatted}")
@@ -366,7 +374,7 @@ def get_cluster_latency(
 
     logger.info(f"Time taken to scan cluster {cluster_name}: {time.monotonic() - t0:.3f}s")
 
-    return ConsumerLatencyResult(scans=scans, errors=errors or None)
+    return ConsumerLatencyResult(scans=scans, errors=errors)
 
 
 def record_consumer_group_latency(
@@ -393,4 +401,4 @@ def record_consumer_group_latency(
         if result.errors:
             errors.extend(result.errors)
 
-    return ConsumerLatencyResult(scans=scans, errors=errors or None)
+    return ConsumerLatencyResult(scans=scans, errors=errors)
