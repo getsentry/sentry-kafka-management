@@ -309,7 +309,6 @@ def get_cluster_latency(
             worker_count = min(len(work), max_workers)
 
             consumers: list[Consumer] = []
-            consumers_lock = threading.Lock()
             consumer_local = threading.local()
 
             def get_consumer() -> Consumer:
@@ -317,8 +316,7 @@ def get_cluster_latency(
                 if consumer is None:
                     consumer = Consumer(dict(consumer_config))
                     consumer_local.consumer = consumer
-                    with consumers_lock:
-                        consumers.append(consumer)
+                    consumers.append(consumer)
                 return consumer
 
             def scan(item: PartitionScan) -> TopicConsumerLatency:
