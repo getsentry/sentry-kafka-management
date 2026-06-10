@@ -60,6 +60,39 @@ def test_consumer_latency_runs_collection_loop_and_emits_metrics(
 
 
 @patch("sentry_kafka_management.scripts.latency.consumer_latency.DatadogMetricsBackend")
+@patch(
+    "sentry_kafka_management.scripts.latency.consumer_latency.record_consumer_group_latency_action"
+)
+@patch("time.sleep")
+def test_consumer_latency_passes_max_workers(
+    mock_sleep: MagicMock,
+    mock_record: MagicMock,
+    mock_metrics_backend_cls: MagicMock,
+    temp_config: Path,
+) -> None:
+    mock_record.return_value = ConsumerLatencyResult(scans=[])
+    mock_sleep.side_effect = KeyboardInterrupt
+
+    result = CliRunner().invoke(
+        consumer_latency,
+        [
+            "--config",
+            str(temp_config),
+            "--statsd-host",
+            "localhost",
+            "--statsd-port",
+            "8126",
+            "--max-workers",
+            "32",
+        ],
+    )
+
+    assert result.exit_code != 0
+    mock_record.assert_called_once()
+    assert mock_record.call_args.args[3] == 32
+
+
+@patch("sentry_kafka_management.scripts.latency.consumer_latency.DatadogMetricsBackend")
 @patch("sentry_kafka_management.actions.latency.consumer_latency.get_cluster_latency")
 @patch("time.sleep")
 def test_consumer_latency_handles_iterations_with_no_scans(

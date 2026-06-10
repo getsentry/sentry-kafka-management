@@ -7,6 +7,9 @@ from pathlib import Path
 import click
 
 from sentry_kafka_management.actions.latency.consumer_latency import (
+    DEFAULT_MAX_WORKERS,
+)
+from sentry_kafka_management.actions.latency.consumer_latency import (
     record_consumer_group_latency as record_consumer_group_latency_action,
 )
 from sentry_kafka_management.actions.latency.metrics import DatadogMetricsBackend
@@ -49,6 +52,14 @@ from sentry_kafka_management.brokers import YamlKafkaConfig
     help="How long in seconds to wait before Kafka requests time out. Defaults to 10s.",
 )
 @click.option(
+    "-w",
+    "--max-workers",
+    required=False,
+    default=DEFAULT_MAX_WORKERS,
+    type=click.IntRange(min=1),
+    help="Maximum concurrent partition scans per cluster. Defaults to 128.",
+)
+@click.option(
     "-l",
     "--log-level",
     required=False,
@@ -62,6 +73,7 @@ def consumer_latency(
     statsd_port: int,
     interval: float,
     timeout: int,
+    max_workers: int,
     log_level: str,
 ) -> None:
     """
@@ -75,10 +87,15 @@ def consumer_latency(
     kafka_config = YamlKafkaConfig(config)
     metrics_backend = DatadogMetricsBackend(statsd_host, statsd_port)
 
-    click.echo(f"Starting consumer latency collection (interval={interval:.3f}s)")
+    click.echo(
+        f"Starting consumer latency collection "
+        f"(interval={interval:.3f}s, max_workers={max_workers})"
+    )
 
     while True:
-        result = record_consumer_group_latency_action(kafka_config, metrics_backend, timeout)
+        result = record_consumer_group_latency_action(
+            kafka_config, metrics_backend, timeout, max_workers
+        )
 
         for scan in result.scans:
             click.echo(

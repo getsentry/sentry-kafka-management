@@ -87,6 +87,12 @@ def _make_committed_offsets_future(
     return future
 
 
+def _make_errored_committed_offsets_future(exc: Exception) -> Future[ConsumerGroupTopicPartitions]:
+    future: Future[ConsumerGroupTopicPartitions] = Future()
+    future.set_exception(exc)
+    return future
+
+
 def _make_errored_topic_partition(topic: str, partition: int, offset: int) -> Mock:
     bad_tp = Mock(spec=["topic", "partition", "offset", "error"])
     bad_tp.topic = topic
@@ -174,11 +180,12 @@ def test_get_committed_offsets(
         "group-a": _make_committed_offsets_future("group-a", partitions)
     }
 
+    result = get_committed_offsets(admin, ["group-a"])
+
     if raises is not None:
-        with pytest.raises(raises):
-            get_committed_offsets(admin, "group-a")
+        assert isinstance(result["group-a"], raises)
     else:
-        assert get_committed_offsets(admin, "group-a") == expected
+        assert result["group-a"] == expected
 
 
 def test_read_timestamp_ms_returns_create_time_timestamp() -> None:
@@ -365,9 +372,9 @@ def test_get_cluster_latency_skips_own_consumer_group(
     )
 
     assert result.scans == []
-    assert result.errors is None
+    assert len(result.errors) == 0
     admin.list_consumer_group_offsets.assert_not_called()
-    mock_consumer_cls.return_value.close.assert_called_once()
+    mock_consumer_cls.assert_not_called()
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
@@ -401,7 +408,7 @@ def test_get_cluster_latency_filters_unconfigured_topics(
         )
 
     assert [scan.topic_name for scan in result.scans] == ["topic-a"]
-    assert result.errors is None
+    assert len(result.errors) == 0
     for call in consumer.get_watermark_offsets.call_args_list:
         assert call.args[0].topic == "topic-a"
 
@@ -439,7 +446,7 @@ def test_get_cluster_latency_reports_latency_per_partition(
         result = get_cluster_latency(
             "cluster1",
             CLUSTER_CONFIG,
-            topics={"topic-a": _topic_config(partitions=2)},
+            topics={"topic-a": _topic_config(partitions=1)},
             timeout=10,
         )
 
@@ -459,7 +466,64 @@ def test_get_cluster_latency_reports_latency_per_partition(
             partition=1,
         ),
     ]
-    assert result.errors is None
+    assert len(result.errors) == 0
+
+
+@patch("sentry_kafka_management.actions.latency.consumer_latency.ThreadPoolExecutor")
+@patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
+@patch("sentry_kafka_management.actions.latency.consumer_latency.get_admin_client")
+def test_get_cluster_latency_caps_scan_workers(
+    mock_get_admin: MagicMock,
+    mock_consumer_cls: MagicMock,
+    mock_executor_cls: MagicMock,
+) -> None:
+    admin = Mock()
+    mock_get_admin.return_value = admin
+    admin.list_consumer_groups.return_value = _make_list_groups_result(
+        valid=[_make_group_listing("group-a")],
+    )
+    partitions = [TopicPartition("topic-a", p, 50) for p in range(10)]
+    admin.list_consumer_group_offsets.return_value = {
+        "group-a": _make_committed_offsets_future("group-a", partitions),
+    }
+
+    consumer = mock_consumer_cls.return_value
+    consumer.get_watermark_offsets.return_value = (0, 100)
+    consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 800))
+
+    executor = MagicMock()
+    mock_executor_cls.return_value.__enter__.return_value = executor
+
+    def submit(_fn: object, *args: object) -> Future[ConsumerLatencyResult]:
+        future: Future[ConsumerLatencyResult] = Future()
+        future.set_result(
+            ConsumerLatencyResult(
+                scans=[
+                    TopicConsumerLatency(
+                        cluster_name="cluster1",
+                        group_id="group-a",
+                        topic_name="topic-a",
+                        latency_ms=0.0,
+                        partition=0,
+                    )
+                ],
+            )
+        )
+        return future
+
+    executor.submit.side_effect = submit
+
+    with patch("time.time", return_value=1.0):
+        get_cluster_latency(
+            "cluster1",
+            CLUSTER_CONFIG,
+            topics={"topic-a": _topic_config(partitions=10)},
+            timeout=10,
+            max_workers=4,
+        )
+
+    scan_call = mock_executor_cls.call_args_list[0]
+    assert scan_call.kwargs["max_workers"] == 4
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
@@ -499,7 +563,7 @@ def test_get_cluster_latency_skips_uncommitted_partitions(
             partition=0,
         ),
     ]
-    assert result.errors is None
+    assert len(result.errors) == 0
     consumer.get_watermark_offsets.assert_called_once()
 
 
@@ -526,7 +590,7 @@ def test_get_cluster_latency_skips_groups_with_no_matching_topics(
     )
 
     assert result.scans == []
-    assert result.errors is None
+    assert len(result.errors) == 0
     mock_consumer_cls.return_value.get_watermark_offsets.assert_not_called()
 
 
@@ -548,7 +612,8 @@ def test_get_cluster_latency_closes_consumer_on_error(
     assert result.errors is not None
     assert len(result.errors) == 1
     assert isinstance(result.errors[0], KafkaException)
-    mock_consumer_cls.return_value.close.assert_called_once()
+
+    mock_consumer_cls.assert_not_called()
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
@@ -562,10 +627,18 @@ def test_get_cluster_latency_continues_after_committed_offsets_error(
     admin.list_consumer_groups.return_value = _make_list_groups_result(
         valid=[_make_group_listing("group-a"), _make_group_listing("group-b")],
     )
-    admin.list_consumer_group_offsets.side_effect = [
-        {"group-a": _make_committed_offsets_future("group-a", [TopicPartition("topic-a", 0, 50)])},
-        KafkaException("boom"),
-    ]
+    offsets_by_group = {
+        "group-a": _make_committed_offsets_future("group-a", [TopicPartition("topic-a", 0, 50)]),
+        "group-b": _make_errored_committed_offsets_future(KafkaException("boom")),
+    }
+
+    def list_offsets(
+        reqs: list[ConsumerGroupTopicPartitions],
+    ) -> dict[str, Future[ConsumerGroupTopicPartitions]]:
+        group_id = reqs[0].group_id
+        return {group_id: offsets_by_group[group_id]}
+
+    admin.list_consumer_group_offsets.side_effect = list_offsets
 
     consumer = mock_consumer_cls.return_value
     consumer.get_watermark_offsets.return_value = (0, 100)
@@ -675,7 +748,7 @@ def test_get_cluster_latency_uses_per_topic_retention_when_aged_out(
         timeout=10,
     )
 
-    assert result.errors is None
+    assert len(result.errors) == 0
     assert {(s.topic_name, s.latency_ms) for s in result.scans} == {
         ("topic-short", 5_000.0),
         ("topic-long", 86_400_000.0),
@@ -714,7 +787,7 @@ def test_get_cluster_latency_uses_default_retention_when_unset(
         timeout=10,
     )
 
-    assert result.errors is None
+    assert len(result.errors) == 0
     assert result.scans == [
         TopicConsumerLatency(
             cluster_name="cluster1",
@@ -739,25 +812,26 @@ def test_record_consumer_group_latency_emits_one_histogram_per_scan(
         "cluster1": {"topic-a": {}},
         "cluster2": {"topic-b": {}},
     }[name]
-    mock_get_cluster_latency.side_effect = [
-        ConsumerLatencyResult(
+    cluster_results = {
+        "cluster1": ConsumerLatencyResult(
             scans=[
                 TopicConsumerLatency("cluster1", "topic-a", "group-a", 100.0, partition=0),
                 TopicConsumerLatency("cluster1", "topic-a", "group-b", 200.0, partition=1),
             ],
         ),
-        ConsumerLatencyResult(
+        "cluster2": ConsumerLatencyResult(
             scans=[
                 TopicConsumerLatency("cluster2", "topic-b", "group-c", 50.0, partition=2),
             ],
         ),
-    ]
+    }
+    mock_get_cluster_latency.side_effect = lambda name, *a, **k: cluster_results[name]
     metrics = FakeMetricsBackend()
 
     result = record_consumer_group_latency(config, metrics)
 
     assert len(result.scans) == 3
-    assert result.errors is None
+    assert len(result.errors) == 0
     assert [latency for _, latency, _ in metrics.histograms] == [100.0, 200.0, 50.0]
     cluster_tags = [tags["cluster"] for _, _, tags in metrics.histograms if tags]
     assert cluster_tags == ["cluster1", "cluster1", "cluster2"]
@@ -778,7 +852,7 @@ def test_record_consumer_group_latency_emits_nothing_when_no_clusters_have_laten
     result = record_consumer_group_latency(config, metrics)
 
     assert result.scans == []
-    assert result.errors is None
+    assert len(result.errors) == 0
     assert metrics.histograms == []
 
 
@@ -795,17 +869,18 @@ def test_record_consumer_group_latency_emits_good_clusters_with_errors(
         "cluster1": {"topic-a": {}},
         "cluster2": {"topic-b": {}},
     }[name]
-    mock_get_cluster_latency.side_effect = [
-        ConsumerLatencyResult(
+    cluster_results = {
+        "cluster1": ConsumerLatencyResult(
             scans=[TopicConsumerLatency("cluster1", "topic-a", "group-a", 100.0, partition=0)],
         ),
-        ConsumerLatencyResult(
+        "cluster2": ConsumerLatencyResult(
             scans=[
                 TopicConsumerLatency("cluster2", "topic-b", "group-b", 50.0, partition=1),
             ],
             errors=[KafkaException("boom")],
         ),
-    ]
+    }
+    mock_get_cluster_latency.side_effect = lambda name, *a, **k: cluster_results[name]
     metrics = FakeMetricsBackend()
 
     result = record_consumer_group_latency(config, metrics)
@@ -834,12 +909,13 @@ def test_record_consumer_group_latency_emits_good_clusters_on_total_cluster_fail
         "cluster1": {"topic-a": {}},
         "cluster2": {"topic-b": {}},
     }[name]
-    mock_get_cluster_latency.side_effect = [
-        ConsumerLatencyResult(
+    cluster_results = {
+        "cluster1": ConsumerLatencyResult(
             scans=[TopicConsumerLatency("cluster1", "topic-a", "group-a", 100.0, partition=0)],
         ),
-        ConsumerLatencyResult(scans=[], errors=[KafkaException("cluster unreachable")]),
-    ]
+        "cluster2": ConsumerLatencyResult(scans=[], errors=[KafkaException("cluster unreachable")]),
+    }
+    mock_get_cluster_latency.side_effect = lambda name, *a, **k: cluster_results[name]
     metrics = FakeMetricsBackend()
 
     result = record_consumer_group_latency(config, metrics)
