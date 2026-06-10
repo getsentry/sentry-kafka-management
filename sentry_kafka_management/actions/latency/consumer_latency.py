@@ -134,122 +134,51 @@ def get_committed_offsets(
     return results
 
 
-def read_timestamp_ms(
+def read_committed_timestamps(
     consumer: Consumer,
-    topic: str,
-    partition: int,
-    offset: int,
+    scans: list[PartitionScan],
     timeout: int,
-) -> int:
-    """Read the timestamp of a message from a Kafka topic."""
-    consumer.assign([TopicPartition(topic, partition, offset)])
-    deadline = time.monotonic() + timeout
+) -> tuple[dict[tuple[str, int], int], list[Exception]]:
+    """Read the message timestamp at each scan's committed offset."""
+    timestamps: dict[tuple[str, int], int] = {}
+    errors: list[Exception] = []
 
-    while time.monotonic() < deadline:
+    pending = {(scan.topic, scan.partition) for scan in scans}
+    consumer.assign(
+        [TopicPartition(scan.topic, scan.partition, scan.committed_offset) for scan in scans]
+    )
+
+    deadline = time.monotonic() + timeout
+    while pending and time.monotonic() < deadline:
         msg = consumer.poll(1.0)
         if msg is None:
             continue
 
-        error = msg.error()
+        key = (msg.topic(), msg.partition())
+        if key not in pending:
+            continue
 
+        error = msg.error()
         if error is not None:
-            if error.code() not in RETRYABLE_ERRORS:
-                raise KafkaException(error)
-            else:
+            if error.code() in RETRYABLE_ERRORS:
                 continue
+            errors.append(KafkaException(error))
+            pending.discard(key)
+            continue
 
         ts_type, ts_ms = msg.timestamp()
-
         if ts_type == TIMESTAMP_NOT_AVAILABLE:
-            raise ValueError(f"Timestamp not available for {topic}[{partition}] at offset {offset}")
+            errors.append(ValueError(f"Timestamp not available for {key[0]}[{key[1]}]"))
+        elif ts_ms < 0:
+            errors.append(ValueError(f"Invalid timestamp {ts_ms} for {key[0]}[{key[1]}]"))
+        else:
+            timestamps[key] = int(ts_ms)
+        pending.discard(key)
 
-        if ts_ms < 0:
-            raise ValueError(
-                f"Invalid timestamp {ts_ms} for {topic}[{partition}] at offset {offset}"
-            )
+    for topic, partition in pending:
+        errors.append(TimeoutError(f"Timed out reading timestamp for {topic}[{partition}]"))
 
-        logger.info(
-            "Read message timestamp for topic=%s partition=%s offset=%s: ts_type=%s ts_ms=%s",
-            topic,
-            partition,
-            offset,
-            ts_type,
-            ts_ms,
-        )
-        return int(ts_ms)
-
-    raise TimeoutError(f"Timed out reading timestamp for {topic}[{partition}] at offset {offset}")
-
-
-def get_partition_latency(
-    consumer: Consumer,
-    topic: str,
-    partition: int,
-    committed_offset: int,
-    retention_ms: int,
-    timeout: int,
-) -> float:
-    """Get the latency of a partition."""
-
-    logger.info(
-        "Collecting latency for topic=%s partition=%s committed_offset=%s",
-        topic,
-        partition,
-        committed_offset,
-    )
-
-    watermark_start = time.monotonic()
-    low, high = consumer.get_watermark_offsets(
-        TopicPartition(topic, partition), timeout=timeout, cached=False
-    )
-    watermark_ms = (time.monotonic() - watermark_start) * 1000.0
-
-    logger.info(
-        "Watermark lookup for topic=%s partition=%s took %.1fms",
-        topic,
-        partition,
-        watermark_ms,
-    )
-
-    logger.info(
-        "Watermarks for topic=%s partition=%s: low=%s high=%s committed_offset=%s",
-        topic,
-        partition,
-        low,
-        high,
-        committed_offset,
-    )
-
-    if high <= committed_offset:
-        return 0.0  # Caught up regardless of retention
-
-    if committed_offset < low:
-        return float(retention_ms)  # Aged out of retention
-
-    poll_start = time.monotonic()
-    ts_ms = read_timestamp_ms(consumer, topic, partition, committed_offset, timeout)
-    poll_ms = (time.monotonic() - poll_start) * 1000.0
-
-    logger.info(
-        "Polled message for topic=%s partition=%s in poll_ms=%.1f",
-        topic,
-        partition,
-        poll_ms,
-    )
-
-    now_ms = int(time.time() * 1000)
-    latency_ms = float(now_ms - ts_ms)
-
-    logger.info(
-        "Computed latency for topic=%s partition=%s: now_ms=%s ts_ms=%s latency_ms=%.1f",
-        topic,
-        partition,
-        now_ms,
-        ts_ms,
-        latency_ms,
-    )
-
-    return latency_ms
+    return timestamps, errors
 
 
 def get_consumer_group_latency(
@@ -288,19 +217,24 @@ def get_consumer_group_latency(
 
     consumer = Consumer(dict(consumer_config))
     try:
+        to_read: list[PartitionScan] = []
         for item in group_scans:
             try:
-                latency_ms = get_partition_latency(
-                    consumer,
-                    item.topic,
-                    item.partition,
-                    item.committed_offset,
-                    item.retention_ms,
-                    timeout,
+                low, high = consumer.get_watermark_offsets(
+                    TopicPartition(item.topic, item.partition), timeout=timeout, cached=False
                 )
             except Exception as e:
                 errors.append(e)
                 continue
+
+            if high <= item.committed_offset:
+                latency_ms = 0.0  # Caught up regardless of retention
+            elif item.committed_offset < low:
+                latency_ms = float(item.retention_ms)  # Aged out of retention
+            else:
+                to_read.append(item)
+                continue
+
             scans.append(
                 TopicConsumerLatency(
                     cluster_name=cluster_name,
@@ -310,6 +244,24 @@ def get_consumer_group_latency(
                     partition=item.partition,
                 )
             )
+
+        if to_read:
+            timestamps, read_errors = read_committed_timestamps(consumer, to_read, timeout)
+            errors.extend(read_errors)
+            now_ms = int(time.time() * 1000)
+            for item in to_read:
+                ts_ms = timestamps.get((item.topic, item.partition))
+                if ts_ms is None:
+                    continue
+                scans.append(
+                    TopicConsumerLatency(
+                        cluster_name=cluster_name,
+                        group_id=item.group_id,
+                        topic_name=item.topic,
+                        latency_ms=float(now_ms - ts_ms),
+                        partition=item.partition,
+                    )
+                )
     finally:
         try:
             consumer.close()
@@ -342,6 +294,7 @@ def get_cluster_latency(
     consumer_config = {
         "queued.min.messages": 1,
         "queued.max.messages.kbytes": 1,
+        "fetch.queue.backoff.ms": 10,
         "enable.auto.commit": False,
         "group.id": consumer_group_id,
         **build_broker_config(config),
@@ -360,30 +313,32 @@ def get_cluster_latency(
 
         scan_group_ids = [g for g in group_ids if g != consumer_group_id]
 
-        if scan_group_ids:
-            with ThreadPoolExecutor(
-                max_workers=max_workers,
-                thread_name_prefix=f"latency-{cluster_name}",
-            ) as executor:
-                futures = [
-                    executor.submit(
-                        get_consumer_group_latency,
-                        admin,
-                        consumer_config,
-                        cluster_name,
-                        group_id,
-                        retentions_by_topic,
-                        timeout,
-                    )
-                    for group_id in scan_group_ids
-                ]
-                for future in as_completed(futures):
-                    try:
-                        group_result = future.result()
-                        scans.extend(group_result.scans)
-                        errors.extend(group_result.errors)
-                    except Exception as e:
-                        errors.append(e)
+        if not scan_group_ids:
+            return ConsumerLatencyResult(scans=scans, errors=errors)
+
+        with ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix=f"latency-{cluster_name}",
+        ) as executor:
+            futures = [
+                executor.submit(
+                    get_consumer_group_latency,
+                    admin,
+                    consumer_config,
+                    cluster_name,
+                    group_id,
+                    retentions_by_topic,
+                    timeout,
+                )
+                for group_id in scan_group_ids
+            ]
+            for future in as_completed(futures):
+                try:
+                    group_result = future.result()
+                    scans.extend(group_result.scans)
+                    errors.extend(group_result.errors)
+                except Exception as e:
+                    errors.append(e)
     except Exception as e:
         errors.append(e)
 
