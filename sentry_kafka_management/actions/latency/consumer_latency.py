@@ -42,6 +42,12 @@ RETRYABLE_ERRORS = frozenset(
 
 
 @dataclass
+class TimestampRead:
+    ts_ms: int
+    read_at_ms: int
+
+
+@dataclass
 class PartitionScan:
     group_id: str
     topic: str
@@ -138,9 +144,9 @@ def read_committed_timestamps(
     consumer: Consumer,
     scans: list[PartitionScan],
     timeout: int,
-) -> tuple[dict[tuple[str, int], int], list[Exception]]:
+) -> tuple[dict[tuple[str, int], TimestampRead], list[Exception]]:
     """Read the message timestamp at each scan's committed offset."""
-    timestamps: dict[tuple[str, int], int] = {}
+    reads: dict[tuple[str, int], TimestampRead] = {}
     errors: list[Exception] = []
 
     pending = {(scan.topic, scan.partition) for scan in scans}
@@ -172,13 +178,13 @@ def read_committed_timestamps(
         elif ts_ms < 0:
             errors.append(ValueError(f"Invalid timestamp {ts_ms} for {key[0]}[{key[1]}]"))
         else:
-            timestamps[key] = int(ts_ms)
+            reads[key] = TimestampRead(ts_ms=int(ts_ms), read_at_ms=int(time.time() * 1000))
         pending.discard(key)
 
     for topic, partition in pending:
         errors.append(TimeoutError(f"Timed out reading timestamp for {topic}[{partition}]"))
 
-    return timestamps, errors
+    return reads, errors
 
 
 def get_consumer_group_latency(
@@ -246,19 +252,18 @@ def get_consumer_group_latency(
             )
 
         if to_read:
-            timestamps, read_errors = read_committed_timestamps(consumer, to_read, timeout)
+            reads, read_errors = read_committed_timestamps(consumer, to_read, timeout)
             errors.extend(read_errors)
-            now_ms = int(time.time() * 1000)
             for item in to_read:
-                ts_ms = timestamps.get((item.topic, item.partition))
-                if ts_ms is None:
+                read = reads.get((item.topic, item.partition))
+                if read is None:
                     continue
                 scans.append(
                     TopicConsumerLatency(
                         cluster_name=cluster_name,
                         group_id=item.group_id,
                         topic_name=item.topic,
-                        latency_ms=float(now_ms - ts_ms),
+                        latency_ms=float(read.read_at_ms - read.ts_ms),
                         partition=item.partition,
                     )
                 )

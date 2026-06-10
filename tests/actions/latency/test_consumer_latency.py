@@ -210,11 +210,9 @@ def test_read_committed_timestamps_returns_create_time_timestamp() -> None:
     consumer = Mock()
     consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 1_700_000_000_000))
 
-    timestamps, errors = read_committed_timestamps(
-        consumer, [_scan(committed_offset=42)], timeout=10
-    )
+    reads, errors = read_committed_timestamps(consumer, [_scan(committed_offset=42)], timeout=10)
 
-    assert timestamps == {("topic-a", 0): 1_700_000_000_000}
+    assert reads[("topic-a", 0)].ts_ms == 1_700_000_000_000
     assert errors == []
     consumer.assign.assert_called_once()
     (assigned,) = consumer.assign.call_args.args
@@ -227,9 +225,9 @@ def test_read_committed_timestamps_returns_log_append_time_timestamp() -> None:
         timestamp=(TIMESTAMP_LOG_APPEND_TIME, 1_700_000_000_500)
     )
 
-    timestamps, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
 
-    assert timestamps == {("topic-a", 0): 1_700_000_000_500}
+    assert reads[("topic-a", 0)].ts_ms == 1_700_000_000_500
     assert errors == []
 
 
@@ -241,9 +239,12 @@ def test_read_committed_timestamps_assigns_all_partitions_in_one_batch() -> None
     ]
 
     scans = [_scan(partition=0, committed_offset=5), _scan(partition=1, committed_offset=7)]
-    timestamps, errors = read_committed_timestamps(consumer, scans, timeout=10)
+    reads, errors = read_committed_timestamps(consumer, scans, timeout=10)
 
-    assert timestamps == {("topic-a", 0): 10, ("topic-a", 1): 20}
+    assert {key: read.ts_ms for key, read in reads.items()} == {
+        ("topic-a", 0): 10,
+        ("topic-a", 1): 20,
+    }
     assert errors == []
     consumer.assign.assert_called_once()
     (assigned,) = consumer.assign.call_args.args
@@ -258,9 +259,9 @@ def test_read_committed_timestamps_skips_empty_polls_then_returns() -> None:
         _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 5)),
     ]
 
-    timestamps, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
 
-    assert timestamps == {("topic-a", 0): 5}
+    assert reads[("topic-a", 0)].ts_ms == 5
     assert consumer.poll.call_count == 3
 
 
@@ -270,9 +271,9 @@ def test_read_committed_timestamps_records_message_error() -> None:
         error=KafkaError(KafkaError.UNKNOWN, "fetch failed"),
     )
 
-    timestamps, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
 
-    assert timestamps == {}
+    assert reads == {}
     assert len(errors) == 1
     assert isinstance(errors[0], KafkaException)
 
@@ -284,9 +285,9 @@ def test_read_committed_timestamps_retries_on_retryable_error() -> None:
         _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 9)),
     ]
 
-    timestamps, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
 
-    assert timestamps == {("topic-a", 0): 9}
+    assert reads[("topic-a", 0)].ts_ms == 9
     assert errors == []
     assert consumer.poll.call_count == 2
 
@@ -295,9 +296,9 @@ def test_read_committed_timestamps_records_timestamp_not_available() -> None:
     consumer = Mock()
     consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_NOT_AVAILABLE, 0))
 
-    timestamps, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
 
-    assert timestamps == {}
+    assert reads == {}
     assert len(errors) == 1
     assert isinstance(errors[0], ValueError)
     assert "Timestamp not available" in str(errors[0])
@@ -307,9 +308,9 @@ def test_read_committed_timestamps_records_negative_timestamp() -> None:
     consumer = Mock()
     consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_CREATE_TIME, -1))
 
-    timestamps, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
 
-    assert timestamps == {}
+    assert reads == {}
     assert len(errors) == 1
     assert isinstance(errors[0], ValueError)
     assert "Invalid timestamp" in str(errors[0])
@@ -320,9 +321,9 @@ def test_read_committed_timestamps_records_timeout_for_unread_partitions() -> No
     consumer.poll.return_value = None
 
     with patch("time.monotonic", side_effect=[0.0, 0.5, 100.0]):
-        timestamps, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+        reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
 
-    assert timestamps == {}
+    assert reads == {}
     assert len(errors) == 1
     assert isinstance(errors[0], TimeoutError)
 
