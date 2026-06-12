@@ -26,8 +26,8 @@ from sentry_kafka_management.actions.latency.consumer_latency import (
     get_cluster_latency,
     get_committed_offsets,
     list_consumer_group_ids,
-    read_committed_timestamps,
     record_consumer_group_latency,
+    scan_partition_latencies,
 )
 from sentry_kafka_management.actions.latency.metrics import MetricsBackend, Tags
 from sentry_kafka_management.brokers import ClusterConfig, TopicConfig
@@ -206,32 +206,60 @@ def test_get_committed_offsets(
         assert result["group-a"] == expected
 
 
-def test_read_committed_timestamps_returns_create_time_timestamp() -> None:
+def test_scan_partition_latencies_returns_latency_from_create_time() -> None:
     consumer = Mock()
     consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 1_700_000_000_000))
 
-    reads, errors = read_committed_timestamps(consumer, [_scan(committed_offset=42)], timeout=10)
+    with patch("time.time", return_value=1_700_000_000.5):
+        latencies, errors = scan_partition_latencies(
+            consumer, [_scan(committed_offset=42)], timeout=10
+        )
 
-    assert reads[("topic-a", 0)].ts_ms == 1_700_000_000_000
+    assert latencies == {("topic-a", 0): 500.0}
     assert errors == []
     consumer.assign.assert_called_once()
     (assigned,) = consumer.assign.call_args.args
     assert assigned == [TopicPartition("topic-a", 0, 42)]
 
 
-def test_read_committed_timestamps_returns_log_append_time_timestamp() -> None:
+def test_scan_partition_latencies_returns_latency_from_log_append_time() -> None:
     consumer = Mock()
     consumer.poll.return_value = _make_message(
         timestamp=(TIMESTAMP_LOG_APPEND_TIME, 1_700_000_000_500)
     )
 
-    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    with patch("time.time", return_value=1_700_000_001.0):
+        latencies, errors = scan_partition_latencies(consumer, [_scan()], timeout=10)
 
-    assert reads[("topic-a", 0)].ts_ms == 1_700_000_000_500
+    assert latencies == {("topic-a", 0): 500.0}
     assert errors == []
 
 
-def test_read_committed_timestamps_assigns_all_partitions_in_one_batch() -> None:
+def test_scan_partition_latencies_caught_up_partition_is_zero() -> None:
+    consumer = Mock()
+    consumer.poll.return_value = _make_message(
+        error=KafkaError(KafkaError._PARTITION_EOF, "reached end of partition"),
+    )
+
+    latencies, errors = scan_partition_latencies(consumer, [_scan()], timeout=10)
+
+    assert latencies == {("topic-a", 0): 0.0}
+    assert errors == []
+
+
+def test_scan_partition_latencies_aged_out_uses_retention() -> None:
+    consumer = Mock()
+    consumer.poll.return_value = _make_message(
+        error=KafkaError(KafkaError._AUTO_OFFSET_RESET, "Offset out of range"),
+    )
+
+    latencies, errors = scan_partition_latencies(consumer, [_scan(retention_ms=5_000)], timeout=10)
+
+    assert latencies == {("topic-a", 0): 5_000.0}
+    assert errors == []
+
+
+def test_scan_partition_latencies_assigns_all_partitions_in_one_batch() -> None:
     consumer = Mock()
     consumer.poll.side_effect = [
         _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 10), partition=0),
@@ -239,19 +267,17 @@ def test_read_committed_timestamps_assigns_all_partitions_in_one_batch() -> None
     ]
 
     scans = [_scan(partition=0, committed_offset=5), _scan(partition=1, committed_offset=7)]
-    reads, errors = read_committed_timestamps(consumer, scans, timeout=10)
+    with patch("time.time", return_value=1.0):
+        latencies, errors = scan_partition_latencies(consumer, scans, timeout=10)
 
-    assert {key: read.ts_ms for key, read in reads.items()} == {
-        ("topic-a", 0): 10,
-        ("topic-a", 1): 20,
-    }
+    assert latencies == {("topic-a", 0): 990.0, ("topic-a", 1): 980.0}
     assert errors == []
     consumer.assign.assert_called_once()
     (assigned,) = consumer.assign.call_args.args
     assert assigned == [TopicPartition("topic-a", 0, 5), TopicPartition("topic-a", 1, 7)]
 
 
-def test_read_committed_timestamps_skips_empty_polls_then_returns() -> None:
+def test_scan_partition_latencies_skips_empty_polls_then_returns() -> None:
     consumer = Mock()
     consumer.poll.side_effect = [
         None,
@@ -259,71 +285,73 @@ def test_read_committed_timestamps_skips_empty_polls_then_returns() -> None:
         _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 5)),
     ]
 
-    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    with patch("time.time", return_value=1.0):
+        latencies, errors = scan_partition_latencies(consumer, [_scan()], timeout=10)
 
-    assert reads[("topic-a", 0)].ts_ms == 5
+    assert latencies == {("topic-a", 0): 995.0}
     assert consumer.poll.call_count == 3
 
 
-def test_read_committed_timestamps_records_message_error() -> None:
+def test_scan_partition_latencies_records_message_error() -> None:
     consumer = Mock()
     consumer.poll.return_value = _make_message(
         error=KafkaError(KafkaError.UNKNOWN, "fetch failed"),
     )
 
-    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    latencies, errors = scan_partition_latencies(consumer, [_scan()], timeout=10)
 
-    assert reads == {}
+    assert latencies == {}
     assert len(errors) == 1
     assert isinstance(errors[0], KafkaException)
 
 
-def test_read_committed_timestamps_retries_on_retryable_error() -> None:
+def test_scan_partition_latencies_retries_on_retryable_error() -> None:
     consumer = Mock()
     consumer.poll.side_effect = [
         _make_message(error=KafkaError(KafkaError.REQUEST_TIMED_OUT, "request timed out")),
         _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 9)),
     ]
 
-    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    with patch("time.time", return_value=1.0):
+        latencies, errors = scan_partition_latencies(consumer, [_scan()], timeout=10)
 
-    assert reads[("topic-a", 0)].ts_ms == 9
+    assert latencies == {("topic-a", 0): 991.0}
     assert errors == []
     assert consumer.poll.call_count == 2
 
 
-def test_read_committed_timestamps_records_timestamp_not_available() -> None:
+def test_scan_partition_latencies_records_timestamp_not_available() -> None:
     consumer = Mock()
     consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_NOT_AVAILABLE, 0))
 
-    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    latencies, errors = scan_partition_latencies(consumer, [_scan()], timeout=10)
 
-    assert reads == {}
+    assert latencies == {}
     assert len(errors) == 1
     assert isinstance(errors[0], ValueError)
     assert "Timestamp not available" in str(errors[0])
 
 
-def test_read_committed_timestamps_records_negative_timestamp() -> None:
+def test_scan_partition_latencies_records_negative_timestamp() -> None:
     consumer = Mock()
     consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_CREATE_TIME, -1))
 
-    reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+    latencies, errors = scan_partition_latencies(consumer, [_scan()], timeout=10)
 
-    assert reads == {}
+    assert latencies == {}
     assert len(errors) == 1
     assert isinstance(errors[0], ValueError)
     assert "Invalid timestamp" in str(errors[0])
 
 
-def test_read_committed_timestamps_records_timeout_for_unread_partitions() -> None:
+def test_scan_partition_latencies_records_timeout_for_unread_partitions() -> None:
     consumer = Mock()
     consumer.poll.return_value = None
 
     with patch("time.monotonic", side_effect=[0.0, 0.5, 100.0]):
-        reads, errors = read_committed_timestamps(consumer, [_scan()], timeout=10)
+        latencies, errors = scan_partition_latencies(consumer, [_scan()], timeout=10)
 
-    assert reads == {}
+    assert latencies == {}
     assert len(errors) == 1
     assert isinstance(errors[0], TimeoutError)
 
@@ -373,7 +401,6 @@ def test_get_cluster_latency_filters_unconfigured_topics(
     }
 
     consumer = mock_consumer_cls.return_value
-    consumer.get_watermark_offsets.return_value = (10, 100)
     consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 0))
 
     with patch("time.time", return_value=1.0):
@@ -383,8 +410,9 @@ def test_get_cluster_latency_filters_unconfigured_topics(
 
     assert [scan.topic_name for scan in result.scans] == ["topic-a"]
     assert len(result.errors) == 0
-    for call in consumer.get_watermark_offsets.call_args_list:
-        assert call.args[0].topic == "topic-a"
+    for call in consumer.assign.call_args_list:
+        for assigned in call.args[0]:
+            assert assigned.topic == "topic-a"
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
@@ -409,8 +437,6 @@ def test_get_cluster_latency_reports_latency_per_partition(
     }
 
     consumer = mock_consumer_cls.return_value
-    consumer.get_watermark_offsets.return_value = (0, 100)
-
     consumer.poll.side_effect = [
         _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 800), partition=0),
         _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 0), partition=1),
@@ -462,7 +488,6 @@ def test_get_cluster_latency_caps_scan_workers(
     }
 
     consumer = mock_consumer_cls.return_value
-    consumer.get_watermark_offsets.return_value = (0, 100)
     consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 800))
 
     executor = MagicMock()
@@ -519,7 +544,9 @@ def test_get_cluster_latency_skips_uncommitted_partitions(
     }
 
     consumer = mock_consumer_cls.return_value
-    consumer.get_watermark_offsets.return_value = (0, 100)
+    consumer.poll.return_value = _make_message(
+        error=KafkaError(KafkaError._PARTITION_EOF, "reached end of partition"),
+    )
 
     result = get_cluster_latency(
         "cluster1",
@@ -538,7 +565,7 @@ def test_get_cluster_latency_skips_uncommitted_partitions(
         ),
     ]
     assert len(result.errors) == 0
-    consumer.get_watermark_offsets.assert_called_once()
+    consumer.assign.assert_called_once()
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
@@ -565,7 +592,7 @@ def test_get_cluster_latency_skips_groups_with_no_matching_topics(
 
     assert result.scans == []
     assert len(result.errors) == 0
-    mock_consumer_cls.return_value.get_watermark_offsets.assert_not_called()
+    mock_consumer_cls.return_value.poll.assert_not_called()
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
@@ -615,7 +642,6 @@ def test_get_cluster_latency_continues_after_committed_offsets_error(
     admin.list_consumer_group_offsets.side_effect = list_offsets
 
     consumer = mock_consumer_cls.return_value
-    consumer.get_watermark_offsets.return_value = (0, 100)
     consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 800))
 
     with patch("time.time", return_value=1.0):
@@ -659,14 +685,10 @@ def test_get_cluster_latency_continues_after_partition_latency_error(
     }
 
     consumer = mock_consumer_cls.return_value
-
-    def watermark_offsets(tp: TopicPartition, **kwargs: object) -> tuple[int, int]:
-        if tp.partition == 1:
-            raise KafkaException("watermark lookup failed")
-        return (0, 100)
-
-    consumer.get_watermark_offsets.side_effect = watermark_offsets
-    consumer.poll.return_value = _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 800))
+    consumer.poll.side_effect = [
+        _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 800), partition=0),
+        _make_message(error=KafkaError(KafkaError.UNKNOWN, "fetch failed"), partition=1),
+    ]
 
     with patch("time.time", return_value=1.0):
         result = get_cluster_latency(
@@ -710,7 +732,18 @@ def test_get_cluster_latency_uses_per_topic_retention_when_aged_out(
             ],
         ),
     }
-    mock_consumer_cls.return_value.get_watermark_offsets.return_value = (100, 200)
+    mock_consumer_cls.return_value.poll.side_effect = [
+        _make_message(
+            error=KafkaError(KafkaError._AUTO_OFFSET_RESET, "Offset out of range"),
+            topic="topic-short",
+            partition=0,
+        ),
+        _make_message(
+            error=KafkaError(KafkaError._AUTO_OFFSET_RESET, "Offset out of range"),
+            topic="topic-long",
+            partition=0,
+        ),
+    ]
 
     result = get_cluster_latency(
         "cluster1",
@@ -746,7 +779,11 @@ def test_get_cluster_latency_uses_default_retention_when_unset(
             [TopicPartition("topic-no-retention", 0, 5)],
         ),
     }
-    mock_consumer_cls.return_value.get_watermark_offsets.return_value = (100, 200)
+    mock_consumer_cls.return_value.poll.return_value = _make_message(
+        error=KafkaError(KafkaError._AUTO_OFFSET_RESET, "Offset out of range"),
+        topic="topic-no-retention",
+        partition=0,
+    )
     no_retention_topic = TopicConfig(
         partitions=1,
         placement=1,

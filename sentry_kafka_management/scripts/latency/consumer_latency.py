@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 import click
+import sentry_sdk
 
 from sentry_kafka_management.actions.latency.consumer_latency import (
     DEFAULT_MAX_WORKERS,
@@ -110,6 +111,7 @@ def consumer_latency(
         if result.errors:
             for error in result.errors:
                 click.echo(f"Error: {error}", err=True)
+                sentry_sdk.capture_exception(error)
             raise click.ClickException(
                 f"Consumer latency collection failed ({len(result.errors)} error(s))"
             )
