@@ -94,9 +94,13 @@ def consumer_latency(
     )
 
     while True:
-        result = record_consumer_group_latency_action(
-            kafka_config, metrics_backend, timeout, max_workers
-        )
+        try:
+            result = record_consumer_group_latency_action(
+                kafka_config, metrics_backend, timeout, max_workers
+            )
+        except Exception:
+            sentry_sdk.capture_exception()
+            raise
 
         for scan in result.scans:
             click.echo(
