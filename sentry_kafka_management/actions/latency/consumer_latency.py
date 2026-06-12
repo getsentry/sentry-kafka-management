@@ -155,7 +155,10 @@ def scan_partition_latencies(
         if msg is None:
             continue
 
-        key = (msg.topic(), msg.partition())
+        msg_topic = msg.topic()
+        msg_partition = msg.partition()
+
+        key = (msg_topic, msg_partition)
         if key not in pending:
             continue
 
@@ -171,6 +174,7 @@ def scan_partition_latencies(
             else:
                 errors.append(KafkaException(error))
             pending.discard(key)
+            consumer.pause([TopicPartition(msg_topic, msg_partition)])
             continue
 
         ts_type, ts_ms = msg.timestamp()
@@ -181,6 +185,7 @@ def scan_partition_latencies(
         else:
             latencies[key] = float(int(time.time() * 1000) - int(ts_ms))
         pending.discard(key)
+        consumer.pause([TopicPartition(msg_topic, msg_partition)])
 
     for topic, partition in pending:
         errors.append(TimeoutError(f"Timed out reading timestamp for {topic}[{partition}]"))

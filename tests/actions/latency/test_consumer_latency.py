@@ -344,6 +344,21 @@ def test_scan_partition_latencies_records_negative_timestamp() -> None:
     assert "Invalid timestamp" in str(errors[0])
 
 
+def test_scan_partition_latencies_pauses_each_partition_once_resolved() -> None:
+    consumer = Mock()
+    consumer.poll.side_effect = [
+        _make_message(timestamp=(TIMESTAMP_CREATE_TIME, 10), partition=0),
+        _make_message(error=KafkaError(KafkaError._PARTITION_EOF, "eof"), partition=1),
+    ]
+
+    scans = [_scan(partition=0, committed_offset=5), _scan(partition=1, committed_offset=9)]
+    with patch("time.time", return_value=1.0):
+        scan_partition_latencies(consumer, scans, timeout=10)
+
+    paused = [call.args[0] for call in consumer.pause.call_args_list]
+    assert paused == [[TopicPartition("topic-a", 0)], [TopicPartition("topic-a", 1)]]
+
+
 def test_scan_partition_latencies_records_timeout_for_unread_partitions() -> None:
     consumer = Mock()
     consumer.poll.return_value = None
