@@ -42,12 +42,6 @@ RETRYABLE_ERRORS = frozenset(
 
 
 @dataclass
-class TimestampRead:
-    ts_ms: int
-    read_at_ms: int
-
-
-@dataclass
 class PartitionScan:
     group_id: str
     topic: str
@@ -140,16 +134,17 @@ def get_committed_offsets(
     return results
 
 
-def read_committed_timestamps(
+def scan_partition_latencies(
     consumer: Consumer,
     scans: list[PartitionScan],
     timeout: int,
-) -> tuple[dict[tuple[str, int], TimestampRead], list[Exception]]:
-    """Read the message timestamp at each scan's committed offset."""
-    reads: dict[tuple[str, int], TimestampRead] = {}
+) -> tuple[dict[tuple[str, int], float], list[Exception]]:
+    """Classify each partition's consumer latency from a single poll loop."""
+    latencies: dict[tuple[str, int], float] = {}
     errors: list[Exception] = []
 
-    pending = {(scan.topic, scan.partition) for scan in scans}
+    retention_by_key = {(scan.topic, scan.partition): scan.retention_ms for scan in scans}
+    pending = set(retention_by_key)
     consumer.assign(
         [TopicPartition(scan.topic, scan.partition, scan.committed_offset) for scan in scans]
     )
@@ -160,16 +155,33 @@ def read_committed_timestamps(
         if msg is None:
             continue
 
-        key = (msg.topic(), msg.partition())
+        msg_topic = msg.topic()
+        msg_partition = msg.partition()
+
+        key = (msg_topic, msg_partition)
         if key not in pending:
             continue
 
+        # We only need one message per partition to record latency. Our
+        # consumer is assigned every partition at once, so without
+        # pausing the broker keeps fetching from partitions we've already
+        # scanned and poll() returns useless messages. These messages can
+        # flood the queue and prevent unscanned partitions from being fetched.
+        # Pausing scanned partitions prevents this blocking from happening.
+
         error = msg.error()
         if error is not None:
-            if error.code() in RETRYABLE_ERRORS:
+            code = error.code()
+            if code in RETRYABLE_ERRORS:
                 continue
-            errors.append(KafkaException(error))
+            if code == KafkaError._PARTITION_EOF:
+                latencies[key] = 0.0
+            elif code == KafkaError._AUTO_OFFSET_RESET:
+                latencies[key] = float(retention_by_key[key])
+            else:
+                errors.append(KafkaException(error))
             pending.discard(key)
+            consumer.pause([TopicPartition(msg_topic, msg_partition)])
             continue
 
         ts_type, ts_ms = msg.timestamp()
@@ -178,13 +190,14 @@ def read_committed_timestamps(
         elif ts_ms < 0:
             errors.append(ValueError(f"Invalid timestamp {ts_ms} for {key[0]}[{key[1]}]"))
         else:
-            reads[key] = TimestampRead(ts_ms=int(ts_ms), read_at_ms=int(time.time() * 1000))
+            latencies[key] = float(int(time.time() * 1000) - int(ts_ms))
         pending.discard(key)
+        consumer.pause([TopicPartition(msg_topic, msg_partition)])
 
     for topic, partition in pending:
         errors.append(TimeoutError(f"Timed out reading timestamp for {topic}[{partition}]"))
 
-    return reads, errors
+    return latencies, errors
 
 
 def get_consumer_group_latency(
@@ -223,24 +236,12 @@ def get_consumer_group_latency(
 
     consumer = Consumer(dict(consumer_config))
     try:
-        to_read: list[PartitionScan] = []
+        latencies, scan_errors = scan_partition_latencies(consumer, group_scans, timeout)
+        errors.extend(scan_errors)
         for item in group_scans:
-            try:
-                low, high = consumer.get_watermark_offsets(
-                    TopicPartition(item.topic, item.partition), timeout=timeout, cached=False
-                )
-            except Exception as e:
-                errors.append(e)
+            latency_ms = latencies.get((item.topic, item.partition))
+            if latency_ms is None:
                 continue
-
-            if high <= item.committed_offset:
-                latency_ms = 0.0  # Caught up regardless of retention
-            elif item.committed_offset < low:
-                latency_ms = float(item.retention_ms)  # Aged out of retention
-            else:
-                to_read.append(item)
-                continue
-
             scans.append(
                 TopicConsumerLatency(
                     cluster_name=cluster_name,
@@ -250,23 +251,6 @@ def get_consumer_group_latency(
                     partition=item.partition,
                 )
             )
-
-        if to_read:
-            reads, read_errors = read_committed_timestamps(consumer, to_read, timeout)
-            errors.extend(read_errors)
-            for item in to_read:
-                read = reads.get((item.topic, item.partition))
-                if read is None:
-                    continue
-                scans.append(
-                    TopicConsumerLatency(
-                        cluster_name=cluster_name,
-                        group_id=item.group_id,
-                        topic_name=item.topic,
-                        latency_ms=float(read.read_at_ms - read.ts_ms),
-                        partition=item.partition,
-                    )
-                )
     finally:
         try:
             consumer.close()
@@ -296,8 +280,13 @@ def get_cluster_latency(
         else:
             retentions_by_topic[topic_name] = int(retention_ms)
 
+    # enable.partition.eof: ensures that _PARTITION_EOF is raised on poll consumer is caught up
+    # auto.offset.reset: ensures _AUTO_OFFSET_RESET is raised on poll consumer is out of retention
+
     consumer_config = {
         "enable.auto.commit": False,
+        "enable.partition.eof": True,
+        "auto.offset.reset": "error",
         "group.id": consumer_group_id,
         **build_broker_config(config),
     }

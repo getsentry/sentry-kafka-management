@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+
 import click
+import sentry_sdk
 
 from sentry_kafka_management import __version__
 from sentry_kafka_management.scripts.brokers.configs import (
@@ -50,11 +53,14 @@ COMMANDS = [
 
 @click.group()
 @click.version_option(version=__version__, prog_name="sentry-kafka-management")
-def main() -> None:
+@click.pass_context
+def main(ctx: click.Context) -> None:
     """
     CLI entrypoint for sentry-kafka-management.
     """
-    pass
+    sentry_sdk.init(dsn=os.environ.get("SENTRY_DSN"), release=__version__)
+    if ctx.invoked_subcommand is not None:
+        sentry_sdk.set_tag("command", ctx.invoked_subcommand)
 
 
 for command in COMMANDS:
