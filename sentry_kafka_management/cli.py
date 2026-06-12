@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import click
 import sentry_sdk
 
@@ -31,11 +33,6 @@ from sentry_kafka_management.scripts.topics.healthcheck import (
 from sentry_kafka_management.scripts.topics.partitions import elect_partition_leaders
 from sentry_kafka_management.scripts.topics.placement import compute_topic_placement
 
-SENTRY_DSN = (
-    "https://93b0938702b2a9c18ffd9312643a1e5b"
-    "@o4510127168028672.ingest.s4s2.sentry.io/4510749467607136"
-)
-
 COMMANDS = [
     apply_configs,
     compute_topic_placement,
@@ -61,7 +58,7 @@ def main(ctx: click.Context) -> None:
     """
     CLI entrypoint for sentry-kafka-management.
     """
-    sentry_sdk.init(dsn=SENTRY_DSN, release=__version__)
+    sentry_sdk.init(dsn=os.environ.get("SENTRY_DSN"), release=__version__)
     if ctx.invoked_subcommand is not None:
         sentry_sdk.set_tag("command", ctx.invoked_subcommand)
 
