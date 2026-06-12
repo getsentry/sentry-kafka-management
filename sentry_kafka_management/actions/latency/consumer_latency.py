@@ -162,6 +162,13 @@ def scan_partition_latencies(
         if key not in pending:
             continue
 
+        # We only need one message per partition to record latency. Our
+        # consumer is assigned every partition at once, so without
+        # pausing the broker keeps fetching from partitions we've already
+        # scanned and poll() returns useless messages. These messages can
+        # flood the queue and prevent unscanned partitions from being fetched.
+        # Pausing scanned partitions prevents this blocking from happening.
+
         error = msg.error()
         if error is not None:
             code = error.code()
