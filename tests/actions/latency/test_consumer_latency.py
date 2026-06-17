@@ -925,7 +925,7 @@ def test_record_consumer_group_latency_scans_only_selected_clusters(
     )
     metrics = FakeMetricsBackend()
 
-    result = record_consumer_group_latency(config, metrics, clusters=["cluster2"])
+    result = record_consumer_group_latency(config, metrics, clusters=("cluster2",))
 
     scanned = [call.args[0] for call in mock_get_cluster_latency.call_args_list]
     assert scanned == ["cluster2"]
