@@ -1,4 +1,5 @@
 import json
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -63,15 +64,20 @@ def test_cli_brokers_describe_configs(
 @patch(
     "sentry_kafka_management.scripts.latency.consumer_latency.record_consumer_group_latency_action"
 )
-@patch("time.sleep")
+@patch.object(threading.Event, "wait", autospec=True)
 def test_cli_consumer_latency(
-    mock_sleep: MagicMock,
+    mock_wait: MagicMock,
     mock_record_consumer_group_latency: MagicMock,
     mock_metrics_backend: MagicMock,
     temp_config: Path,
 ) -> None:
     mock_record_consumer_group_latency.return_value = ConsumerLatencyResult(scans=[])
-    mock_sleep.side_effect = KeyboardInterrupt
+
+    def stop_loop(event: threading.Event, _timeout: float | None = None) -> bool:
+        event.set()
+        return True
+
+    mock_wait.side_effect = stop_loop
 
     runner = click.testing.CliRunner()
     result = runner.invoke(
@@ -87,6 +93,6 @@ def test_cli_consumer_latency(
         ],
     )
 
-    assert result.exit_code != 0
+    assert result.exit_code == 0
     mock_metrics_backend.assert_called_once_with("localhost", 8125)
     mock_record_consumer_group_latency.assert_called_once()
