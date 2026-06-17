@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -138,6 +139,7 @@ def scan_partition_latencies(
     consumer: Consumer,
     scans: list[PartitionScan],
     timeout: int,
+    stop_event: threading.Event | None = None,
 ) -> tuple[dict[tuple[str, int], float], list[Exception]]:
     """Classify each partition's consumer latency from a single poll loop."""
     latencies: dict[tuple[str, int], float] = {}
@@ -151,6 +153,8 @@ def scan_partition_latencies(
 
     deadline = time.monotonic() + timeout
     while pending and time.monotonic() < deadline:
+        if stop_event is not None and stop_event.is_set():
+            return latencies, errors
         msg = consumer.poll(1.0)
         if msg is None:
             continue
@@ -207,12 +211,16 @@ def get_consumer_group_latency(
     group_id: str,
     retentions_by_topic: Mapping[str, int],
     timeout: int,
+    stop_event: threading.Event | None = None,
 ) -> ConsumerLatencyResult:
     """
     Scan every partition for a single consumer group on one dedicated consumer.
     """
     scans: list[TopicConsumerLatency] = []
     errors: list[Exception] = []
+
+    if stop_event is not None and stop_event.is_set():
+        return ConsumerLatencyResult(scans=scans, errors=errors)
 
     committed = get_committed_offsets(admin, [group_id])[group_id]
     if isinstance(committed, Exception):
@@ -236,7 +244,9 @@ def get_consumer_group_latency(
 
     consumer = Consumer(dict(consumer_config))
     try:
-        latencies, scan_errors = scan_partition_latencies(consumer, group_scans, timeout)
+        latencies, scan_errors = scan_partition_latencies(
+            consumer, group_scans, timeout, stop_event
+        )
         errors.extend(scan_errors)
         for item in group_scans:
             latency_ms = latencies.get((item.topic, item.partition))
@@ -266,6 +276,7 @@ def get_cluster_latency(
     topics: Mapping[str, TopicConfig],
     timeout: int,
     max_workers: int = DEFAULT_MAX_WORKERS,
+    stop_event: threading.Event | None = None,
 ) -> ConsumerLatencyResult:
     consumer_group_id = f"consumer-latency-group-{cluster_name}"
     scans: list[TopicConsumerLatency] = []
@@ -320,16 +331,24 @@ def get_cluster_latency(
                     group_id,
                     retentions_by_topic,
                     timeout,
+                    stop_event,
                 )
                 for group_id in scan_group_ids
             ]
-            for future in as_completed(futures):
-                try:
-                    group_result = future.result()
-                    scans.extend(group_result.scans)
-                    errors.extend(group_result.errors)
-                except Exception as e:
-                    errors.append(e)
+            try:
+                for future in as_completed(futures):
+                    if stop_event is not None and stop_event.is_set():
+                        break
+                    try:
+                        group_result = future.result()
+                        scans.extend(group_result.scans)
+                        errors.extend(group_result.errors)
+                    except Exception as e:
+                        errors.append(e)
+            finally:
+                if stop_event is not None and stop_event.is_set():
+                    for future in futures:
+                        future.cancel()
     except Exception as e:
         errors.append(e)
 
@@ -343,15 +362,20 @@ def record_consumer_group_latency(
     metrics: MetricsBackend,
     timeout: int = 10,
     max_workers: int = DEFAULT_MAX_WORKERS,
+    stop_event: threading.Event | None = None,
 ) -> ConsumerLatencyResult:
     scans: list[TopicConsumerLatency] = []
     errors: list[Exception] = []
     clusters = config.get_clusters()
 
     for cluster_name, cluster_config in clusters.items():
+        if stop_event is not None and stop_event.is_set():
+            break
         try:
             topics = config.get_topics_config(cluster_name)
-            result = get_cluster_latency(cluster_name, cluster_config, topics, timeout, max_workers)
+            result = get_cluster_latency(
+                cluster_name, cluster_config, topics, timeout, max_workers, stop_event
+            )
         except Exception as e:
             errors.append(e)
             continue

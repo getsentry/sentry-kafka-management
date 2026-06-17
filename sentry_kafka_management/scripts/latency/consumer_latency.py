@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import logging
-import time
+import signal
+import threading
+import types
 from pathlib import Path
 
 import click
@@ -88,15 +90,24 @@ def consumer_latency(
     kafka_config = YamlKafkaConfig(config)
     metrics_backend = DatadogMetricsBackend(statsd_host, statsd_port)
 
+    stop_event = threading.Event()
+
+    def handle_signal(signum: int, _frame: types.FrameType | None) -> None:
+        click.echo(f"Received {signal.Signals(signum).name}, shutting down.")
+        stop_event.set()
+
+    signal.signal(signal.SIGINT, handle_signal)
+    signal.signal(signal.SIGTERM, handle_signal)
+
     click.echo(
         f"Starting consumer latency collection "
         f"(interval={interval:.3f}s, max_workers={max_workers})"
     )
 
-    while True:
+    while not stop_event.is_set():
         try:
             result = record_consumer_group_latency_action(
-                kafka_config, metrics_backend, timeout, max_workers
+                kafka_config, metrics_backend, timeout, max_workers, stop_event
             )
         except Exception:
             sentry_sdk.capture_exception()
@@ -120,4 +131,6 @@ def consumer_latency(
                 f"Consumer latency collection failed ({len(result.errors)} error(s))"
             )
 
-        time.sleep(interval)
+        stop_event.wait(interval)
+
+    click.echo("Consumer latency collection stopped")

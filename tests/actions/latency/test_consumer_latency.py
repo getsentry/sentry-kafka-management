@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from concurrent.futures import Future
 from unittest.mock import MagicMock, Mock, patch
 
@@ -369,6 +370,50 @@ def test_scan_partition_latencies_records_timeout_for_unread_partitions() -> Non
     assert latencies == {}
     assert len(errors) == 1
     assert isinstance(errors[0], TimeoutError)
+
+
+def test_scan_partition_latencies_returns_early_when_stopped() -> None:
+    consumer = Mock()
+    consumer.poll.return_value = None
+    stop_event = threading.Event()
+    stop_event.set()
+
+    latencies, errors = scan_partition_latencies(
+        consumer, [_scan()], timeout=10, stop_event=stop_event
+    )
+
+    assert latencies == {}
+    assert errors == []
+    consumer.poll.assert_not_called()
+
+
+@patch("sentry_kafka_management.actions.latency.consumer_latency.get_cluster_latency")
+def test_record_consumer_group_latency_stops_between_clusters(
+    mock_get_cluster_latency: MagicMock,
+) -> None:
+    config = Mock()
+    config.get_clusters.return_value = {
+        "cluster1": CLUSTER_CONFIG,
+        "cluster2": CLUSTER_CONFIG,
+    }
+    config.get_topics_config.return_value = {"topic-a": {}}
+    stop_event = threading.Event()
+
+    def stop_after_first(
+        cluster_name: str, *_args: object, **_kwargs: object
+    ) -> ConsumerLatencyResult:
+        stop_event.set()
+        return ConsumerLatencyResult(
+            scans=[TopicConsumerLatency(cluster_name, "topic-a", "group-a", 1.0, partition=0)],
+        )
+
+    mock_get_cluster_latency.side_effect = stop_after_first
+    metrics = FakeMetricsBackend()
+
+    result = record_consumer_group_latency(config, metrics, stop_event=stop_event)
+
+    assert mock_get_cluster_latency.call_count == 1
+    assert len(result.scans) == 1
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.Consumer")
