@@ -365,6 +365,16 @@ def record_consumer_group_latency(
     stop_event: threading.Event | None = None,
     clusters: tuple[str, ...] | None = None,
 ) -> ConsumerLatencyResult:
+    """Collect and emit consumer latency for each selected cluster.
+
+    Args:
+        config: Kafka configuration providing the clusters and their topics.
+        metrics: Backend that per-partition latency histograms are emitted to.
+        timeout: Seconds to wait for each Kafka request before timing out.
+        max_workers: Maximum concurrent partition scans per cluster.
+        stop_event: Optional shutdown signal; when set, scanning stops early.
+        clusters: Names of clusters to scan; defaults to all when empty or None.
+    """
     scans: list[TopicConsumerLatency] = []
     errors: list[Exception] = []
 
