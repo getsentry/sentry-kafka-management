@@ -5,7 +5,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Collection, Mapping
 
 from confluent_kafka import (  # type: ignore[import-untyped]
     TIMESTAMP_NOT_AVAILABLE,
@@ -363,12 +363,19 @@ def record_consumer_group_latency(
     timeout: int = 10,
     max_workers: int = DEFAULT_MAX_WORKERS,
     stop_event: threading.Event | None = None,
+    clusters: Collection[str] | None = None,
 ) -> ConsumerLatencyResult:
     scans: list[TopicConsumerLatency] = []
     errors: list[Exception] = []
-    clusters = config.get_clusters()
 
-    for cluster_name, cluster_config in clusters.items():
+    available_clusters = config.get_clusters()
+    if clusters:
+        selected = set(clusters)
+        cluster_items = {name: cfg for name, cfg in available_clusters.items() if name in selected}
+    else:
+        cluster_items = dict(available_clusters)
+
+    for cluster_name, cluster_config in cluster_items.items():
         if stop_event is not None and stop_event.is_set():
             break
         try:

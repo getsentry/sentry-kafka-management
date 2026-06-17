@@ -911,6 +911,47 @@ def test_record_consumer_group_latency_emits_one_histogram_per_scan(
 
 
 @patch("sentry_kafka_management.actions.latency.consumer_latency.get_cluster_latency")
+def test_record_consumer_group_latency_scans_only_selected_clusters(
+    mock_get_cluster_latency: MagicMock,
+) -> None:
+    config = Mock()
+    config.get_clusters.return_value = {
+        "cluster1": CLUSTER_CONFIG,
+        "cluster2": CLUSTER_CONFIG,
+    }
+    config.get_topics_config.return_value = {"topic-a": {}}
+    mock_get_cluster_latency.side_effect = lambda name, *a, **k: ConsumerLatencyResult(
+        scans=[TopicConsumerLatency(name, "topic-a", "group-a", 1.0, partition=0)],
+    )
+    metrics = FakeMetricsBackend()
+
+    result = record_consumer_group_latency(config, metrics, clusters=["cluster2"])
+
+    scanned = [call.args[0] for call in mock_get_cluster_latency.call_args_list]
+    assert scanned == ["cluster2"]
+    assert [scan.cluster_name for scan in result.scans] == ["cluster2"]
+
+
+@patch("sentry_kafka_management.actions.latency.consumer_latency.get_cluster_latency")
+def test_record_consumer_group_latency_scans_all_clusters_by_default(
+    mock_get_cluster_latency: MagicMock,
+) -> None:
+    config = Mock()
+    config.get_clusters.return_value = {
+        "cluster1": CLUSTER_CONFIG,
+        "cluster2": CLUSTER_CONFIG,
+    }
+    config.get_topics_config.return_value = {"topic-a": {}}
+    mock_get_cluster_latency.return_value = ConsumerLatencyResult(scans=[])
+    metrics = FakeMetricsBackend()
+
+    record_consumer_group_latency(config, metrics)
+
+    scanned = {call.args[0] for call in mock_get_cluster_latency.call_args_list}
+    assert scanned == {"cluster1", "cluster2"}
+
+
+@patch("sentry_kafka_management.actions.latency.consumer_latency.get_cluster_latency")
 def test_record_consumer_group_latency_emits_nothing_when_no_clusters_have_latency(
     mock_get_cluster_latency: MagicMock,
 ) -> None:

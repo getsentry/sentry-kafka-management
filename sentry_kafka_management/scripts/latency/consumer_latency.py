@@ -63,6 +63,14 @@ from sentry_kafka_management.brokers import YamlKafkaConfig
     help="Maximum concurrent partition scans per cluster. Defaults to 128.",
 )
 @click.option(
+    "-k",
+    "--cluster",
+    "clusters",
+    required=False,
+    multiple=True,
+    help="Cluster name to scan. Repeatable. Defaults to all clusters in the config.",
+)
+@click.option(
     "-l",
     "--log-level",
     required=False,
@@ -77,6 +85,7 @@ def consumer_latency(
     interval: float,
     timeout: int,
     max_workers: int,
+    clusters: tuple[str, ...],
     log_level: str,
 ) -> None:
     """
@@ -90,6 +99,15 @@ def consumer_latency(
     kafka_config = YamlKafkaConfig(config)
     metrics_backend = DatadogMetricsBackend(statsd_host, statsd_port)
 
+    available_clusters = set(kafka_config.get_clusters())
+    unknown_clusters = set(clusters) - available_clusters
+    if unknown_clusters:
+        raise click.BadParameter(
+            f"Unknown cluster(s): {', '.join(sorted(unknown_clusters))}. "
+            f"Available clusters: {', '.join(sorted(available_clusters))}",
+            param_hint="--cluster",
+        )
+
     stop_event = threading.Event()
 
     def handle_signal(signum: int, _frame: types.FrameType | None) -> None:
@@ -99,15 +117,21 @@ def consumer_latency(
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
+    clusters_desc = ", ".join(clusters) if clusters else "all"
     click.echo(
         f"Starting consumer latency collection "
-        f"(interval={interval:.3f}s, max_workers={max_workers})"
+        f"(interval={interval:.3f}s, max_workers={max_workers}, clusters={clusters_desc})"
     )
 
     while not stop_event.is_set():
         try:
             result = record_consumer_group_latency_action(
-                kafka_config, metrics_backend, timeout, max_workers, stop_event
+                kafka_config,
+                metrics_backend,
+                timeout,
+                max_workers,
+                stop_event,
+                clusters=clusters,
             )
         except Exception:
             sentry_sdk.capture_exception()

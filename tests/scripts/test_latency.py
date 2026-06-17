@@ -164,6 +164,67 @@ def test_consumer_latency_stops_gracefully_on_signal(
     assert "stopped" in result.output
 
 
+@patch("sentry_kafka_management.scripts.latency.consumer_latency.DatadogMetricsBackend")
+@patch(
+    "sentry_kafka_management.scripts.latency.consumer_latency.record_consumer_group_latency_action"
+)
+@patch.object(threading.Event, "wait", autospec=True)
+def test_consumer_latency_passes_selected_clusters(
+    mock_wait: MagicMock,
+    mock_record: MagicMock,
+    mock_metrics_backend_cls: MagicMock,
+    temp_config: Path,
+) -> None:
+    mock_record.return_value = ConsumerLatencyResult(scans=[])
+    mock_wait.side_effect = _stop_after(1)
+
+    result = CliRunner().invoke(
+        consumer_latency,
+        [
+            "--config",
+            str(temp_config),
+            "--statsd-host",
+            "localhost",
+            "--statsd-port",
+            "8126",
+            "--cluster",
+            "cluster2",
+        ],
+    )
+
+    assert result.exit_code == 0
+    mock_record.assert_called_once()
+    assert mock_record.call_args.kwargs["clusters"] == ("cluster2",)
+
+
+@patch("sentry_kafka_management.scripts.latency.consumer_latency.DatadogMetricsBackend")
+@patch(
+    "sentry_kafka_management.scripts.latency.consumer_latency.record_consumer_group_latency_action"
+)
+def test_consumer_latency_rejects_unknown_cluster(
+    mock_record: MagicMock,
+    mock_metrics_backend_cls: MagicMock,
+    temp_config: Path,
+) -> None:
+    result = CliRunner().invoke(
+        consumer_latency,
+        [
+            "--config",
+            str(temp_config),
+            "--statsd-host",
+            "localhost",
+            "--statsd-port",
+            "8126",
+            "--cluster",
+            "does-not-exist",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Unknown cluster(s): does-not-exist" in result.output
+    mock_record.assert_not_called()
+
+
 def runner_invoke_with_statsd(temp_config: Path, interval: str | None = None) -> Result:
     args = [
         "--config",
