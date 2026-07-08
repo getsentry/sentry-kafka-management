@@ -1,5 +1,5 @@
 from dataclasses import asdict, dataclass
-from typing import Iterable
+from typing import Any, Iterable
 
 from confluent_kafka.admin import (  # type: ignore[import-untyped]
     AdminClient,
@@ -63,29 +63,34 @@ class HealthResponse:
 
     healthy: bool
     reason: list[str]
+    not_preferred_leaders: set[Partition]
+    partitions_outside_isr: set[Partition]
 
-    def to_json(self) -> dict[str, str]:
-        return asdict(self)
+    def to_json(self) -> dict[str, Any]:
+        """
+        Converts `healthy` & `reason` to a dict.
+        Skips the other fields for simplicity of output.
+        """
+        return {"healthy": self.healthy, "reason": self.reason}
 
 
 class PartitionHealthChecker:
     """
     Used in `healthcheck_cluster_topics` to track the health of a cluster's partitions.
-
-    Args:
-        leader_is_preferred: Tracks which partitions have their preferred leader as leader.
-        partitions_outside_isr: Tracks any partitions which have ISR != partition replicas.
     """
 
     def __init__(self) -> None:
-        self.leader_is_preferred: dict[Partition, bool] = {}
+        # Tracks which partitions have a leader other than their preferred replica.
+        self.not_preferred_leaders: set[Partition] = set()
+        # Tracks which partitions have ISR != partition replicas.
         self.partitions_outside_isr: set[Partition] = set()
 
     def check_partition(self, partition: Partition) -> None:
         """
         Checks the given partition's leadership and ISR and records if its unhealthy.
         """
-        self.leader_is_preferred[partition] = partition.leader == partition.replicas[0]
+        if partition.leader != partition.replicas[0]:
+            self.not_preferred_leaders.add(partition)
         if set(partition.replicas) != set(partition.isr):
             self.partitions_outside_isr.add(partition)
 
@@ -99,16 +104,18 @@ class PartitionHealthChecker:
         if self.partitions_outside_isr:
             healthy = False
             reason.append(HealthResponseReason.outside_isr(self.partitions_outside_isr))
-        if not all(self.leader_is_preferred.values()):
-            not_preferred = filter(
-                lambda x: not self.leader_is_preferred[x], self.leader_is_preferred.keys()
-            )
+        if self.not_preferred_leaders:
             healthy = False
-            reason.append(HealthResponseReason.not_preferred_leaders(not_preferred))
+            reason.append(HealthResponseReason.not_preferred_leaders(self.not_preferred_leaders))
 
         if healthy:
             reason = [HealthResponseReason.healthy()]
-        return HealthResponse(healthy=healthy, reason=reason)
+        return HealthResponse(
+            healthy=healthy,
+            reason=reason,
+            not_preferred_leaders=self.not_preferred_leaders,
+            partitions_outside_isr=self.partitions_outside_isr,
+        )
 
 
 def healthcheck_cluster_topics(
@@ -117,8 +124,7 @@ def healthcheck_cluster_topics(
     """
     Does a healthcheck against a Kafka cluster's topics by ensuring that:
     * all topics have the expected number of in-sync replicas
-    * all brokers have a roughly equal amount of partition leaders across all topics
-      in the cluster (+/- the number of brokers in the cluster)
+    * all topics in the cluster have their preferred replica as partition leader
 
     Args:
         admin_client: A Confluent API admin client.

@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 import click
+from confluent_kafka.admin import AdminClient  # type: ignore[import-untyped]
 
 from sentry_kafka_management.actions.topics.healthcheck import (
     HealthResponse,
@@ -12,6 +13,7 @@ from sentry_kafka_management.actions.topics.healthcheck import (
 from sentry_kafka_management.actions.topics.healthcheck import (
     healthcheck_cluster_topics as healthcheck_cluster_topics_actions,
 )
+from sentry_kafka_management.actions.topics.partitions import elect_partition_leaders
 from sentry_kafka_management.connectors.admin import get_admin_client
 from sentry_kafka_management.scripts.config_helpers import get_cluster_config
 
@@ -34,6 +36,22 @@ def _maybe_log_result(
     """
     if health_resonse.healthy or timeout_occurred or log_each_iteration:
         click.echo(json.dumps(health_resonse.to_json(), indent=2))
+
+
+def _maybe_run_election(health_response: HealthResponse, admin_client: AdminClient) -> None:
+    """
+    If `health_response` indicates the cluster is only unhealthy due to
+    having the wrong partition leaders on topics, automatically run a leader election.
+    """
+
+    if (
+        len(health_response.partitions_outside_isr) == 0
+        and len(health_response.not_preferred_leaders) > 0
+    ):
+        click.echo(
+            "Cluster is only unhealthy due to wrong partition leaders, running leader election..."
+        )
+        elect_partition_leaders(admin_client)
 
 
 @click.command()
@@ -72,12 +90,20 @@ def _maybe_log_result(
     is_flag=True,
     help="Whether the healthcheck should log each response received from the cluster.",
 )
+@click.option(
+    "-e",
+    "--run-elections",
+    is_flag=True,
+    help="""Whether the health check should run a leader election if
+            the cluster is only unhealthy due to having the wrong partition leaders.""",
+)
 def healthcheck_cluster_topics(
     config: Path,
     cluster: str,
     timeout: int,
     check_interval: int,
     log_each_iteration: bool,
+    run_elections: bool,
 ) -> None:
     """
     Healthcheck the topics on a cluster.
@@ -93,6 +119,8 @@ def healthcheck_cluster_topics(
         timeout_occurred = (time.time() - start_time) >= timeout
         _maybe_log_result(result, timeout_occurred, log_each_iteration)
         cluster_is_healthy = result.healthy
+        if run_elections:
+            _maybe_run_election(result, client)
         time.sleep(check_interval)
     if not cluster_is_healthy:
         raise HealthcheckTimeoutError(result)
