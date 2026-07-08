@@ -1,3 +1,19 @@
+## 0.1.12
+
+### New Features ✨
+
+- (consumer-latency) Optimize batching and use multithreading by @bmcquilkin-sentry in [#78](https://github.com/getsentry/sentry-kafka-management/pull/78)
+- (healthchecks) Run leader elections in cluster healthcheck by @bmckerry in [#82](https://github.com/getsentry/sentry-kafka-management/pull/82)
+
+### Bug Fixes 🐛
+
+- (consumer-latency) Clean process exiting / --clusters by @bmcquilkin-sentry in [#81](https://github.com/getsentry/sentry-kafka-management/pull/81)
+
+### Other
+
+- Add Sentry SDK and optimize consumer latency polling. by @bmcquilkin-sentry in [#80](https://github.com/getsentry/sentry-kafka-management/pull/80)
+- improve(consumer-latency): batched polling by @bmcquilkin-sentry in [#79](https://github.com/getsentry/sentry-kafka-management/pull/79)
+
 ## 0.1.11
 
 ### New Features ✨
