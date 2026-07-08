@@ -51,7 +51,10 @@ def _maybe_run_election(health_response: HealthResponse, admin_client: AdminClie
         click.echo(
             "Cluster is only unhealthy due to wrong partition leaders, running leader election..."
         )
-        elect_partition_leaders(admin_client)
+        try:
+            elect_partition_leaders(admin_client)
+        except ValueError:
+            click.echo("Election failed to run, continuing healthcheck...")
 
 
 @click.command()
