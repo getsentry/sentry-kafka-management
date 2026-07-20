@@ -229,3 +229,35 @@ def test_round_robin_across_slices() -> None:
     for partition_index, assignment in enumerate(result[0].partitions):
         expected_slice = expected_slices[partition_index]
         assert set(assignment).issubset(slice_sets[expected_slice])
+
+
+def test_alternates_follower_order() -> None:
+    broker_id_mapping = _make_broker_id_mapping(num_slices=1)
+
+    result = compute_cluster_placement(broker_id_mapping, {"topic-a": 6})
+
+    assert result[0].partitions == [
+        [0, 1, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [0, 2, 1],
+        [1, 0, 2],
+        [2, 1, 0],
+    ]
+
+
+def test_failover_leadership_is_evenly_distributed() -> None:
+    broker_id_mapping = _make_broker_id_mapping(num_slices=1)
+    result = compute_cluster_placement(broker_id_mapping, {"topic-a": 6})
+
+    failover_leaders: dict[BrokerId, Counter[BrokerId]] = {
+        broker_id: Counter() for broker_id in broker_id_mapping.values()
+    }
+    for assignment in result[0].partitions:
+        failover_leaders[assignment[0]][assignment[1]] += 1
+
+    assert failover_leaders == {
+        0: Counter({1: 1, 2: 1}),
+        1: Counter({0: 1, 2: 1}),
+        2: Counter({0: 1, 1: 1}),
+    }
