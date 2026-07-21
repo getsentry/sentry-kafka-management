@@ -77,6 +77,20 @@ def build_slices(broker_id_mapping: dict[str, BrokerId]) -> list[Slice]:
     return slices
 
 
+def _build_slice_assignment(broker_slice: Slice, assignment_idx: int) -> Assignment:
+    """
+    Build an assignment for a slice.
+
+    Preferred leaders rotate every assignment. After all brokers have led once, the follower
+    order reverses so failover leadership is distributed between both followers.
+    """
+    rotation = assignment_idx % SLICE_SIZE
+    assignment = broker_slice[rotation:] + broker_slice[:rotation]
+    if (assignment_idx // SLICE_SIZE) % 2:
+        assignment[1:] = reversed(assignment[1:])
+    return assignment
+
+
 def compute_cluster_placement(
     broker_id_mapping: dict[str, BrokerId],
     topic_partitions: dict[str, int],
@@ -134,13 +148,9 @@ def compute_cluster_placement(
         partition_count = topic_partitions[topic_name]
         assignments: list[Assignment] = []
         for partition_idx in range(partition_count):
-            slice = (topic_idx + partition_idx) % num_slices
-            rotation = ((topic_idx + partition_idx) // num_slices) % SLICE_SIZE
-            assignment = slices[slice][rotation:] + slices[slice][:rotation]
-            if ((topic_idx + partition_idx) // (num_slices * SLICE_SIZE)) % 2:
-                # alternate follower order when we have iterated through all possible assignments
-                assignment[1:] = reversed(assignment[1:])
-            assignments.append(assignment)
+            slice_idx = (topic_idx + partition_idx) % num_slices
+            assignment_idx = (topic_idx + partition_idx) // num_slices
+            assignments.append(_build_slice_assignment(slices[slice_idx], assignment_idx))
         cluster_assignments.append(TopicPlacement(topic_name, assignments))
 
     return cluster_assignments
