@@ -11,15 +11,18 @@ For example, a cluster with 9 brokers (3 per zone) has 3 slices:
     Slice 1: [3, 4, 5]
     Slice 2: [6, 7, 8]
 
-Since each slice has 3 brokers, 1 per availability zone, a slice can have 3 different assignments,
-each assignment places the partition leader in one of the three brokers and the replicas in
-the other two brokers. This way, assigning a partition to a slice guarantees its leader and replicas
-span all availability zones.
+Since each slice has 3 brokers, 1 per availability zone, a slice can have 6 different ordered
+assignments: three choices of partition leader, each with two possible follower orders. This way,
+assigning a partition to a slice guarantees its leader and replicas span all availability zones,
+while alternating follower order distributes failover leadership between both followers.
 
 For example, if our slice is [0, 1, 2], the possible assignments are:
     Assignment 0: [0, 1, 2]
     Assignment 1: [1, 2, 0]
     Assignment 2: [2, 0, 1]
+    Assignment 3: [0, 2, 1]
+    Assignment 4: [1, 0, 2]
+    Assignment 5: [2, 1, 0]
 """
 
 from __future__ import annotations
@@ -74,6 +77,20 @@ def build_slices(broker_id_mapping: dict[str, BrokerId]) -> list[Slice]:
     return slices
 
 
+def _build_slice_assignment(broker_slice: Slice, assignment_idx: int) -> Assignment:
+    """
+    Build an assignment for a slice.
+
+    Preferred leaders rotate every assignment. After all brokers have led once, the follower
+    order reverses so failover leadership is distributed between both followers.
+    """
+    rotation = assignment_idx % SLICE_SIZE
+    assignment = broker_slice[rotation:] + broker_slice[:rotation]
+    if (assignment_idx // SLICE_SIZE) % 2:
+        assignment[1:] = reversed(assignment[1:])
+    return assignment
+
+
 def compute_cluster_placement(
     broker_id_mapping: dict[str, BrokerId],
     topic_partitions: dict[str, int],
@@ -95,7 +112,8 @@ def compute_cluster_placement(
         2. For each topic, give an assignment to each partition round-robin, with a per-topic shift:
            topic i, partition j
            -> slice (i + j) % num_slices,
-              assignment: ((i + j) // num_slices) % SLICE_SIZE
+              leader: ((i + j) // num_slices) % SLICE_SIZE,
+              alternating follower order after every SLICE_SIZE assignments
 
     For example, with 3 slices the assignments would be:
         Topic 0, Partition 0: slice 0, assignment 0 -> [0, 1, 2]
@@ -103,6 +121,9 @@ def compute_cluster_placement(
         Topic 0, Partition 2: slice 2, assignment 0 -> [6, 7, 8]
         Topic 0, Partition 3: slice 0, assignment 1 -> [1, 2, 0]
         Topic 0, Partition 4: slice 1, assignment 1 -> [4, 5, 3]
+        ...
+        Topic 0, Partition 9: slice 0, assignment 3 -> [0, 2, 1]
+        Topic 0, Partition 10: slice 1, assignment 3 -> [3, 5, 4]
         ...
         Topic 1, Partition 0: slice 1, assignment 0 -> [3, 4, 5]
         Topic 1, Partition 1: slice 2, assignment 0 -> [6, 7, 8]
@@ -127,9 +148,9 @@ def compute_cluster_placement(
         partition_count = topic_partitions[topic_name]
         assignments: list[Assignment] = []
         for partition_idx in range(partition_count):
-            slice = (topic_idx + partition_idx) % num_slices
-            rotation = ((topic_idx + partition_idx) // num_slices) % SLICE_SIZE
-            assignments.append(slices[slice][rotation:] + slices[slice][:rotation])
+            slice_idx = (topic_idx + partition_idx) % num_slices
+            assignment_idx = (topic_idx + partition_idx) // num_slices
+            assignments.append(_build_slice_assignment(slices[slice_idx], assignment_idx))
         cluster_assignments.append(TopicPlacement(topic_name, assignments))
 
     return cluster_assignments
