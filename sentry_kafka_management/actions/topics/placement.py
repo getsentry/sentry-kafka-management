@@ -91,6 +91,45 @@ def _build_slice_assignment(broker_slice: Slice, assignment_idx: int) -> Assignm
     return assignment
 
 
+def _flip_assignment_followers(assignment: Assignment) -> Assignment:
+    if len(assignment) != SLICE_SIZE:
+        raise ValueError(f"Expected {SLICE_SIZE} replicas, got {len(assignment)}")
+    return [assignment[0], *reversed(assignment[1:])]
+
+
+def balance_assignment_followers(
+    topic_placements: list[TopicPlacement],
+) -> list[TopicPlacement]:
+    """
+    Balance failover leaders without changing preferred leaders or replica sets.
+
+    For assignments with the same leader and follower set, preserve the first occurrence's
+    follower order and alternate every subsequent occurrence between the two possible orders.
+    """
+    assignment_groups: dict[tuple[BrokerId, tuple[BrokerId, ...]], Assignment] = {}
+    flip_next: defaultdict[tuple[BrokerId, tuple[BrokerId, ...]], bool] = defaultdict(bool)
+    balanced_placements: list[TopicPlacement] = []
+    for topic_placement in topic_placements:
+        balanced_assignments: list[Assignment] = []
+        for assignment in topic_placement.partitions:
+            if len(assignment) != SLICE_SIZE:
+                raise ValueError(f"Expected {SLICE_SIZE} replicas, got {len(assignment)}")
+
+            assignment_group = (
+                assignment[0],
+                tuple(sorted(assignment[1:])),
+            )
+            base_assignment = assignment_groups.setdefault(assignment_group, assignment.copy())
+            if flip_next[assignment_group]:
+                balanced_assignments.append(_flip_assignment_followers(base_assignment))
+            else:
+                balanced_assignments.append(base_assignment.copy())
+            flip_next[assignment_group] = not flip_next[assignment_group]
+        balanced_placements.append(TopicPlacement(topic_placement.topic, balanced_assignments))
+
+    return balanced_placements
+
+
 def compute_cluster_placement(
     broker_id_mapping: dict[str, BrokerId],
     topic_partitions: dict[str, int],

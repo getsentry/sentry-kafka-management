@@ -1,13 +1,17 @@
+from collections import Counter
 from pathlib import Path
 
 import pytest
 import yaml
+from click.testing import CliRunner
 
 from sentry_kafka_management.actions.topics.placement import TopicPlacement
 from sentry_kafka_management.scripts.topics.placement import (
+    balance_topic_assignment_followers,
     count_leader_distribution,
     get_default_partitions,
     get_topic_partitions,
+    parse_static_topic_placements,
     parse_topic_partitions,
 )
 
@@ -105,3 +109,53 @@ def test_count_leader_distribution(capsys: pytest.CaptureFixture[str]) -> None:
     output = capsys.readouterr().out
     assert "Leader distribution: 3/2" in output
     assert "Replica distribution: 3/3/3/2/2/2" in output
+
+
+def test_parse_static_topic_placements(shared_config: Path) -> None:
+    topic_path = shared_config / "topics" / "regional_overrides" / "region-1" / "topic-a.yaml"
+    config = yaml.safe_load(topic_path.read_text())
+    config["placement"] = {
+        "staticAssignments": [[0, 1, 2], [0, 1, 2]],
+        "strategy": "static",
+    }
+    topic_path.write_text(yaml.dump(config))
+
+    result = parse_static_topic_placements(shared_config, "region-1", "cluster-1")
+
+    assert result == [TopicPlacement("topic-a", [[0, 1, 2], [0, 1, 2]])]
+
+
+def test_balance_topic_assignment_followers_command(shared_config: Path) -> None:
+    overrides_directory = shared_config / "topics" / "regional_overrides" / "region-1"
+    for topic_name in ("topic-a", "topic-b"):
+        topic_path = overrides_directory / f"{topic_name}.yaml"
+        config = yaml.safe_load(topic_path.read_text())
+        config["placement"] = {
+            "staticAssignments": [[0, 1, 2], [0, 1, 2]],
+            "strategy": "static",
+        }
+        topic_path.write_text(yaml.dump(config))
+
+    runner = CliRunner()
+    result = runner.invoke(
+        balance_topic_assignment_followers,
+        [
+            "--shared-config-path",
+            str(shared_config),
+            "--region",
+            "region-1",
+            "--cluster-name",
+            "cluster-1",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Flipped 2 assignments across 2 topics" in result.output
+
+    assignment_counts: Counter[tuple[int, ...]] = Counter()
+    for topic_name in ("topic-a", "topic-b"):
+        config = yaml.safe_load((overrides_directory / f"{topic_name}.yaml").read_text())
+        assignment_counts.update(
+            tuple(assignment) for assignment in config["placement"]["staticAssignments"]
+        )
+    assert assignment_counts == Counter({(0, 2, 1): 2, (0, 1, 2): 2})

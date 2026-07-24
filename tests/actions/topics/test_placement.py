@@ -5,6 +5,8 @@ import pytest
 from sentry_kafka_management.actions.brokers.parser import BrokerId
 from sentry_kafka_management.actions.topics.placement import (
     SLICE_SIZE,
+    TopicPlacement,
+    balance_assignment_followers,
     build_slices,
     compute_cluster_placement,
 )
@@ -261,3 +263,66 @@ def test_failover_leadership_is_evenly_distributed() -> None:
         1: Counter({0: 1, 2: 1}),
         2: Counter({0: 1, 1: 1}),
     }
+
+
+def test_balances_existing_assignment_followers_without_moving_replicas() -> None:
+    original = [
+        TopicPlacement(
+            "topic-a",
+            [
+                [0, 1, 2],
+                [0, 1, 2],
+                [1, 2, 0],
+                [0, 1, 2],
+            ],
+        ),
+        TopicPlacement(
+            "topic-b",
+            [
+                [0, 1, 2],
+                [1, 2, 0],
+                [0, 1, 2],
+            ],
+        ),
+    ]
+
+    balanced = balance_assignment_followers(original)
+
+    assert balanced == [
+        TopicPlacement(
+            "topic-a",
+            [
+                [0, 1, 2],
+                [0, 2, 1],
+                [1, 2, 0],
+                [0, 1, 2],
+            ],
+        ),
+        TopicPlacement(
+            "topic-b",
+            [
+                [0, 2, 1],
+                [1, 0, 2],
+                [0, 1, 2],
+            ],
+        ),
+    ]
+
+    assignment_counts = Counter(
+        tuple(assignment)
+        for topic_placement in balanced
+        for assignment in topic_placement.partitions
+    )
+    assert assignment_counts[(0, 1, 2)] == 3
+    assert assignment_counts[(0, 2, 1)] == 2
+    assert assignment_counts[(1, 2, 0)] == 1
+    assert assignment_counts[(1, 0, 2)] == 1
+
+    for original_topic, balanced_topic in zip(original, balanced, strict=True):
+        for original_assignment, balanced_assignment in zip(
+            original_topic.partitions, balanced_topic.partitions, strict=True
+        ):
+            assert balanced_assignment[0] == original_assignment[0]
+            assert set(balanced_assignment) == set(original_assignment)
+
+    assert balance_assignment_followers(balanced) == balanced
