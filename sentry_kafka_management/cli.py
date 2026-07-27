@@ -31,10 +31,14 @@ from sentry_kafka_management.scripts.topics.healthcheck import (
     healthcheck_cluster_topics,
 )
 from sentry_kafka_management.scripts.topics.partitions import elect_partition_leaders
-from sentry_kafka_management.scripts.topics.placement import compute_topic_placement
+from sentry_kafka_management.scripts.topics.placement import (
+    balance_topic_assignment_followers,
+    compute_topic_placement,
+)
 
 COMMANDS = [
     apply_configs,
+    balance_topic_assignment_followers,
     compute_topic_placement,
     consumer_latency,
     describe_topic_partitions,
