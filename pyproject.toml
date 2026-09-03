@@ -27,7 +27,7 @@ dev = [
   "devservices>=1.2.1",
   "pre-commit>=4.1.0",
   "types-PyYAML",
-  "black>=24.10.0",
+  "black>=26.3.1",
   "isort>=5.13.0",
   "flake8>=7.1.1"
 ]
