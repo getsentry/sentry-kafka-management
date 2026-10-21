@@ -12,7 +12,7 @@ install-dev:
 	$(MAKE) install-pre-commit-hook
 
 install-ci:
-	which uv || (curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh)
+	which uv || (curl -LsSf https://astral.sh/uv/0.13.4/install.sh | sh)
 	uv sync --group dev
 
 tests:
