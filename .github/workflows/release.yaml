@@ -29,7 +29,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
         with:
-          version: '0.13.4'
+          version: '0.13.5'
 
       - name: Prepare release
         uses: getsentry/craft@c6e2f04939b6ee67030588afbb5af76b127d8203
