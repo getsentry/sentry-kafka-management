@@ -1,19 +1,21 @@
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+  - repo: builtin
     hooks:
       - id: check-case-conflict
       - id: check-merge-conflict
       - id: check-symlinks
       - id: check-xml
       - id: check-yaml
-      - id: detect-private-key
       - id: end-of-file-fixer
         # The release script adds a new line at the end of the CHANGELOG.md
-        # file. Then during CI on the release branch pre-commit tries to remove
+        # file. Then during CI on the release branch prek tries to remove
         # it, thus fails. Excluding it here.
         exclude: ^CHANGELOG.md$
       - id: trailing-whitespace
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-private-key
       - id: fix-encoding-pragma
         args: ["--remove"]
   - repo: https://github.com/psf/black-pre-commit-mirror

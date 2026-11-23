@@ -18,7 +18,7 @@ jobs:
     - name: Make environment
       run: make install-ci
 
-    - name: Run pre-commit hooks
+    - name: Run prek hooks
       run: |
         source .venv/bin/activate
-        pre-commit run --all-files
+        .venv/bin/prek run --all-files
