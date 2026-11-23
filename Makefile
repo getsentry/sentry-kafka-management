@@ -1,15 +1,15 @@
-.PHONY: reset install-dev install-pre-commit-hook tests typecheck lint build
+.PHONY: reset install-dev install-prek-hook tests typecheck lint build
 
 reset:
 	rm -rf .venv
 
-install-pre-commit-hook:
-	.venv/bin/pre-commit install --install-hooks
+install-prek-hook:
+	.venv/bin/prek install --prepare-hooks -f
 
 install-dev:
 	devenv sync
 	uv sync --group dev
-	$(MAKE) install-pre-commit-hook
+	$(MAKE) install-prek-hook
 
 install-ci:
 	which uv || (curl -LsSf https://astral.sh/uv/0.13.7/install.sh | sh)
