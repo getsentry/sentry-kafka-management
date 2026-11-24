@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 import click
 import sentry_sdk
+from sentry_sdk.integrations.logging import LoggingIntegration
 
 from sentry_kafka_management import __version__
 from sentry_kafka_management.scripts.brokers.configs import (
@@ -62,7 +64,36 @@ def main(ctx: click.Context) -> None:
     """
     CLI entrypoint for sentry-kafka-management.
     """
-    sentry_sdk.init(dsn=os.environ.get("SENTRY_DSN"), release=__version__)
+    sentry_sdk.init(
+        dsn=os.environ.get("SENTRY_DSN"),
+        release=__version__,
+        attach_stacktrace=False,
+        integrations=[LoggingIntegration(level=None, event_level=logging.ERROR)],
+        data_collection={
+            "user_info": False,
+            "http_bodies": [],
+            "graphql": {"document": False, "variables": False},
+            "gen_ai": {"inputs": False, "outputs": False},
+            "mcp": {"inputs": False, "outputs": False},
+            "database_query_data": False,
+            "queues": False,
+            "http_headers": {
+                "request": {
+                    "mode": "denylist",
+                    "terms": ["forwarded", "-ip", "remote-", "via", "-user"],
+                },
+            },
+            "cookies": {
+                "mode": "denylist",
+                "terms": ["forwarded", "-ip", "remote-", "via", "-user"],
+            },
+            "url_query_params": {
+                "mode": "denylist",
+                "terms": ["forwarded", "-ip", "remote-", "via", "-user"],
+            },
+            "stack_frame_variables": {"mode": "denylist"},
+        },
+    )
     if ctx.invoked_subcommand is not None:
         sentry_sdk.set_tag("command", ctx.invoked_subcommand)
 
